@@ -62,10 +62,13 @@ consola OSGeo4W asociada a QGIS puede utilizar:
 python -m pip install earthengine-api
 ```
 
-Cada usuario debe disponer de acceso a Earth Engine y a los recursos privados
-que configure, incluidos los assets PISCO cuando corresponda. Si la API no
-está instalada, solamente se deshabilitan las operaciones de Clima GEE; el
-modelo local continúa disponible.
+El campo **Proyecto Cloud** se deja vacío en instalaciones nuevas. Cada
+usuario debe escribir un proyecto de Google Cloud propio o autorizado que
+tenga Earth Engine habilitado. Los assets PISCO vienen propuestos mediante sus
+rutas, pero solo podrán consultarse si su propietario ha concedido permiso de
+lectura a la cuenta conectada o los ha publicado. ERA5-Land y CHIRPS son
+fuentes públicas de Earth Engine. Si la API no está instalada, solamente se
+deshabilitan las operaciones de Clima GEE; el modelo local continúa disponible.
 
 ## Datos de entrada
 

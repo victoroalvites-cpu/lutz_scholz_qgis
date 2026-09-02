@@ -66,7 +66,14 @@ class GeeClimateWidget(QWidget):
         layout = QVBoxLayout(self)
         connection = QGroupBox("Conexion con Google Earth Engine")
         grid = QGridLayout(connection)
-        self.project_edit = QLineEdit("ee-hidrog")
+        self.project_edit = QLineEdit()
+        self.project_edit.setPlaceholderText(
+            "Ingrese su proyecto Cloud habilitado en Earth Engine"
+        )
+        self.project_edit.setToolTip(
+            "Cada usuario debe indicar un proyecto Cloud propio o autorizado "
+            "con Earth Engine habilitado."
+        )
         self.connect_button = QPushButton("Conectar / autorizar")
         self.connect_button.clicked.connect(lambda: self._connect(False))
         self.change_button = QPushButton("Cambiar cuenta")
@@ -177,7 +184,8 @@ class GeeClimateWidget(QWidget):
 
     def _load_settings(self):
         settings = self._settings()
-        self.project_edit.setText(settings.value(f"{self.SETTINGS_PREFIX}/project", "ee-hidrog"))
+        saved_project = settings.value(f"{self.SETTINGS_PREFIX}/project", "")
+        self.project_edit.setText(str(saved_project or "").strip())
         self.pisco_p_edit.setText(settings.value(f"{self.SETTINGS_PREFIX}/pisco_p", DEFAULT_PISCO_PRECIP))
         self.pisco_t_edit.setText(settings.value(f"{self.SETTINGS_PREFIX}/pisco_t", DEFAULT_PISCO_TEMP))
 
@@ -186,6 +194,19 @@ class GeeClimateWidget(QWidget):
         settings.setValue(f"{self.SETTINGS_PREFIX}/project", self.project_edit.text().strip())
         settings.setValue(f"{self.SETTINGS_PREFIX}/pisco_p", self.pisco_p_edit.text().strip())
         settings.setValue(f"{self.SETTINGS_PREFIX}/pisco_t", self.pisco_t_edit.text().strip())
+
+    def _selected_project(self):
+        project = self.project_edit.text().strip()
+        if project:
+            return project
+        QMessageBox.warning(
+            self,
+            "Proyecto Cloud requerido",
+            "Ingrese el identificador de un proyecto Google Cloud propio o "
+            "autorizado que tenga Earth Engine habilitado.",
+        )
+        self.project_edit.setFocus()
+        return None
 
     def _show_dependency_status(self):
         status = dependency_status()
@@ -299,8 +320,10 @@ class GeeClimateWidget(QWidget):
         QgsApplication.taskManager().addTask(task)
 
     def _connect(self, force):
+        project = self._selected_project()
+        if not project:
+            return
         self._save_settings()
-        project = self.project_edit.text().strip()
 
         def done(result):
             reused = result.get("reused")
@@ -321,8 +344,10 @@ class GeeClimateWidget(QWidget):
         )
 
     def _check_connection(self):
+        project = self._selected_project()
+        if not project:
+            return
         self._save_settings()
-        project = self.project_edit.text().strip()
 
         def done(result):
             self.connection_status.setText(f"Conexion verificada: {result['project']} | API {result.get('api_version') or 'disponible'}")
@@ -350,7 +375,9 @@ class GeeClimateWidget(QWidget):
 
     def _inspect_source(self, variable):
         key = self._source_key(variable); p_asset, t_asset = self._source_args()
-        project = self.project_edit.text().strip()
+        project = self._selected_project()
+        if not project:
+            return
 
         def done(summary):
             first = summary.get("first_date")
@@ -389,7 +416,9 @@ class GeeClimateWidget(QWidget):
 
     def _diagnose(self):
         p_asset, t_asset = self._source_args()
-        project = self.project_edit.text().strip()
+        project = self._selected_project()
+        if not project:
+            return
 
         def done(result):
             lines = ["DIAGNOSTICO DE FUENTES"]
@@ -440,12 +469,14 @@ class GeeClimateWidget(QWidget):
         return json.loads(geometry.asJson(8))
 
     def _download(self, variable):
+        project = self._selected_project()
+        if not project:
+            return
         try:
             geometry = self._basin_geojson()
         except Exception as error:
             QMessageBox.warning(self, "Cuenca", str(error)); return
         key = self._source_key(variable); p_asset, t_asset = self._source_args()
-        project = self.project_edit.text().strip()
         start = self.start_edit.date().toString("yyyy-MM-01")
         end = self.end_edit.date().toString("yyyy-MM-01")
 
