@@ -7,10 +7,11 @@ from qgis.PyQt.QtCore import QSettings, Qt, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtSvg import QSvgWidget
 from qgis.PyQt.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog,
-    QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QAbstractItemView, QAbstractScrollArea, QApplication, QCheckBox, QComboBox,
+    QDialog, QDoubleSpinBox, QFileDialog, QFormLayout, QGridLayout, QGroupBox,
+    QHBoxLayout, QLabel, QLayout, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox, QTabWidget,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QSizePolicy,
 )
 from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsMapLayerProxyModel
 from qgis.gui import QgsMapLayerComboBox
@@ -53,11 +54,11 @@ class LutzScholzDialog(QDialog):
         self.last_report_path = None
         self.project_folders = {}
         self.setWindowTitle(f"Modelo Lutz Scholz - v{PLUGIN_VERSION}")
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint)
         self.setMinimumSize(760, 520)
         self.setSizeGripEnabled(True)
-        self.resize(1120, 780)
-        self._resize_to_screen()
         self._build_ui()
+        self._resize_to_screen()
         self._load_project_folder()
 
     def _resize_to_screen(self):
@@ -76,11 +77,17 @@ class LutzScholzDialog(QDialog):
         return widget
 
     def _scroll(self, content):
-        scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setWidget(content)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        scroll.setMinimumSize(0, 0)
+        scroll.setWidget(content)
         return scroll
 
     def _build_ui(self):
         root = QVBoxLayout(self)
+        root.setSizeConstraint(QLayout.SetDefaultConstraint)
         root.addWidget(self._project_group())
         intro = QLabel(
             f"Modelo mensual Lutz Scholz v{PLUGIN_SERIES}: división temporal, clima trazable, "
@@ -97,11 +104,22 @@ class LutzScholzDialog(QDialog):
         self.tabs.addTab(self._supply_tab(), "6. Abastecimiento")
         self.tabs.addTab(self._calibration_tab(), "7. Calibracion")
         self.tabs.addTab(self._results_tab(), "8. Resultados")
+        self.tabs.setMinimumSize(0, 0)
+        self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         root.addWidget(self.tabs, 1)
-        row = QHBoxLayout(); row.addStretch(1)
-        run = QPushButton("Ejecutar modelo"); run.clicked.connect(self._run)
-        close = QPushButton("Cerrar"); close.clicked.connect(self.close)
-        row.addWidget(run); row.addWidget(close); root.addLayout(row)
+        footer = QWidget()
+        footer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        row = QHBoxLayout(footer)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addStretch(1)
+        self.run_button = QPushButton("Ejecutar modelo")
+        self.run_button.setDefault(True)
+        self.run_button.clicked.connect(self._run)
+        self.close_button = QPushButton("Cerrar")
+        self.close_button.clicked.connect(self.close)
+        row.addWidget(self.run_button)
+        row.addWidget(self.close_button)
+        root.addWidget(footer)
 
     def _project_group(self):
         group = QGroupBox("Proyecto")
