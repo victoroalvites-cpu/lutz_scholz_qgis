@@ -217,7 +217,12 @@ class GeeClimateWidget(QWidget):
         python_executable = Path(sys.prefix) / (
             "python.exe" if os.name == "nt" else "bin/python"
         )
-        command = f'"{python_executable}" -m pip install --user earthengine-api'
+        quoted_python = f'"{python_executable}"'
+        command = (
+            f"& {quoted_python} -m pip install --user earthengine-api"
+            if os.name == "nt"
+            else f"{quoted_python} -m pip install --user earthengine-api"
+        )
         message = QMessageBox(self)
         message.setWindowTitle("Habilitar Clima GEE")
         message.setIcon(QMessageBox.Information)
@@ -232,7 +237,7 @@ class GeeClimateWidget(QWidget):
             "Google Earth Engine."
         )
         message.setDetailedText(
-            "Comando para el Python de esta instalación de QGIS:\n\n"
+            "Comando para PowerShell en Windows o para la terminal del sistema:\n\n"
             f"{command}\n\n"
             "Después de instalar:\n"
             "1. Cierre todas las ventanas de QGIS.\n"
