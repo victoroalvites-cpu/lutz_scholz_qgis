@@ -92,7 +92,15 @@ restantes el 40 % de validación.
 Cada ejecución se guarda en una carpeta `corrida_AAAAMMDD_HHMMSS`. Incluye las
 series, métricas, parámetros, procedencia de datos, gráficos individuales y
 paneles en PNG/SVG, además de `Informe_Tecnico_Lutz_Scholz.docx`. La validación
-se informa por separado y nunca modifica los parámetros calibrados.
+se informa por separado y nunca modifica los parámetros calibrados. El informe
+Word conserva los valores iniciales y finales, los límites y la resolución de
+la búsqueda automática, las combinaciones rechazadas por balance físico y la
+comparación del ajuste antes y después de calibrar.
+
+La convención de sesgo utilizada es
+`PBIAS = 100 * suma(Qsim - Qobs) / suma(Qobs)`: un valor negativo representa
+subestimación global y uno positivo, sobreestimación. Las conclusiones separan
+el desempeño general, los caudales bajos y el comportamiento de caudales altos.
 
 El recorte controlado se conserva únicamente como alternativa manual
 exploratoria. Cuando se utiliza, el informe principal presenta una nota breve

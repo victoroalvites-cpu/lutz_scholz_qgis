@@ -1026,7 +1026,9 @@ class LutzScholzDialog(QDialog):
                 result["automatic_calibration"] = {
                     key: best[key] for key in (
                         "score", "coefficient", "initial_coefficient", "retention_mm",
-                        "a_day", "trials", "objective", "calibrated_c",
+                        "initial_retention_mm", "a_day", "initial_a_day", "trials",
+                        "objective", "calibrated_c", "search_bounds", "steps_per_axis",
+                        "refinements",
                         "physical_balance_enforced", "rejected_trials", "retention_limit_mm",
                     )
                 }

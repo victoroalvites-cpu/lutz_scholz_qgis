@@ -159,6 +159,30 @@ def _image_paragraph(rel_id, name, doc_pr_id, width_emu=5943600, height_emu=3962
 </a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'''
 
 
+def _page_break():
+    """Salto de página explícito, más estable entre Word y otros visores DOCX."""
+
+    return '<w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>'
+
+
+def _figure_heading_block(heading, caption):
+    """Encabezado de figura estable, sin bordes ni anclajes flotantes."""
+
+    cell = (
+        '<w:tc><w:tcPr><w:tcW w:w="9360" w:type="dxa"/>'
+        '<w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/>'
+        '<w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar></w:tcPr>'
+        + _paragraph(heading, bold=True, color="2E74B5", size=16, before=16, after=8)
+        + _paragraph(caption, italic=True, color="4B5563", after=8)
+        + '</w:tc>'
+    )
+    return (
+        '<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/>'
+        '<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="9360"/></w:tblGrid>'
+        f'<w:tr>{cell}</w:tr></w:tbl>'
+    )
+
+
 def _styles_xml():
     return f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="{NS_W}">
@@ -199,12 +223,45 @@ def _conclusion(result):
             f"y PBIAS={_safe(cal.get('PBIAS_porcentaje'))} %."
         )
     if val.get("NSE") is not None:
-        delta = val["NSE"] - cal.get("NSE", val["NSE"])
-        direction = "aumentó" if delta >= 0 else "disminuyó"
+        delta_nse = val["NSE"] - cal.get("NSE", val["NSE"])
+        direction_nse = "aumentó" if delta_nse >= 0 else "disminuyó"
         paragraphs.append(
-            f"La validación independiente alcanzó NSE={val['NSE']:.3f}; la diferencia frente a calibración "
-            f"{direction} {abs(delta):.3f}. Los parámetros se mantuvieron fijos durante esta evaluación."
+            f"La validación independiente alcanzó NSE={val['NSE']:.3f}; frente a calibración "
+            f"{direction_nse} {abs(delta_nse):.3f}. Los parámetros se mantuvieron fijos durante esta evaluación."
         )
+        if val.get("KGE") is not None and cal.get("KGE") is not None:
+            delta_kge = val["KGE"] - cal["KGE"]
+            direction_kge = "aumentó" if delta_kge >= 0 else "disminuyó"
+            transfer = (
+                "conserva un desempeño general estable fuera del periodo calibrado"
+                if val["NSE"] >= 0.5 and val["KGE"] >= 0.5
+                else "requiere cautela al transferirse fuera del periodo calibrado"
+            )
+            paragraphs.append(
+                f"El KGE mensual de validación fue {_safe(val.get('KGE'))} y "
+                f"{direction_kge} {abs(delta_kge):.3f} respecto de calibración; el modelo {transfer}."
+            )
+        if val.get("LogNSE") is not None and cal.get("LogNSE") is not None:
+            delta_log = val["LogNSE"] - cal["LogNSE"]
+            if delta_log < -0.05:
+                paragraphs.append(
+                    f"El LogNSE bajó de {_safe(cal.get('LogNSE'))} a {_safe(val.get('LogNSE'))}; "
+                    "el ajuste de caudales bajos es más débil en validación y conviene revisarlo por separado."
+                )
+        pbias = val.get("PBIAS_porcentaje")
+        if pbias is not None:
+            bias_text = "subestimación" if pbias < 0 else "sobreestimación"
+            paragraphs.append(
+                f"El PBIAS mensual de validación fue {_safe(pbias)} %, equivalente a una {bias_text} "
+                "global según la convención Qsim - Qobs usada en este informe."
+            )
+        high_bias = val.get("PBIAS_altos_porcentaje")
+        if high_bias is not None and abs(high_bias) >= 10:
+            tendency = "sobreestimar" if high_bias > 0 else "subestimar"
+            paragraphs.append(
+                f"En caudales altos, el sesgo fue {_safe(high_bias)} %; existe tendencia a {tendency} "
+                "los eventos mayores y no debe asumirse la misma precisión para todos los picos."
+            )
     if not paragraphs:
         paragraphs.append("La corrida se completó y conserva sus resultados para revisión técnica.")
     return paragraphs
@@ -244,7 +301,8 @@ def create_word_report(result, outputs, png_paths, output_path):
         ["Retención espacial", metadata.get("retention_source", "N/D")],
     ], [2700, 6660]))
 
-    body.append(_paragraph("2. Parámetros del modelo", style="Heading1", page_break_before=True))
+    body.append(_page_break())
+    body.append(_paragraph("2. Parámetros del modelo", style="Heading1"))
     parameter_rows = [
         ["Parámetro", "Valor"],
         ["Área de cuenca", f"{_safe(params.get('area_km2'))} km²"],
@@ -260,11 +318,73 @@ def create_word_report(result, outputs, png_paths, output_path):
     ]
     body.append(_table(parameter_rows, [3600, 5760]))
     if calibration:
-        body.append(_paragraph("Calibración automática", style="Heading2"))
+        body.append(_paragraph("Calibración automática y trazabilidad de la búsqueda", style="Heading2"))
+        bounds = calibration.get("search_bounds") or {}
+        c_bounds = bounds.get("coefficient")
+        r_bounds = bounds.get("retention_mm")
+        a_bounds = bounds.get("a_day")
+        search_design = (
+            f"{calibration.get('refinements', 'N/D')} mallas sucesivas; "
+            f"{calibration.get('steps_per_axis', 'N/D')} pasos por eje; "
+            f"{calibration.get('trials', 'N/D')} evaluaciones"
+        )
+        calibration_rows = [
+            ["Elemento", "Detalle"],
+            ["Función objetivo", calibration.get("objective", "N/D")],
+            ["Diseño de búsqueda", search_design],
+        ]
+        c_detail = f"Inicial/final: {_safe(calibration.get('initial_coefficient'), 5)} / {_safe(calibration.get('coefficient'), 5)}"
+        if c_bounds and calibration.get("calibrated_c"):
+            c_detail += f"; límites: {_safe(c_bounds[0], 5)} a {_safe(c_bounds[1], 5)}"
+        elif calibration.get("calibrated_c") is False:
+            c_detail += "; C fijo, no incluido en la búsqueda"
+        calibration_rows.append(["Coeficiente C", c_detail])
+        if calibration.get("initial_retention_mm") is None:
+            r_detail = f"Final: {_safe(calibration.get('retention_mm'))} mm/año"
+        else:
+            r_detail = (
+                f"Inicial/final: {_safe(calibration.get('initial_retention_mm'))} / "
+                f"{_safe(calibration.get('retention_mm'))} mm/año"
+            )
+        if r_bounds:
+            r_detail += f"; límites: {_safe(r_bounds[0])} a {_safe(r_bounds[1])} mm/año"
+        calibration_rows.append(["Retención R", r_detail])
+        if calibration.get("initial_a_day") is None:
+            a_detail = f"Final: {_safe(calibration.get('a_day'), 6)} 1/día"
+        else:
+            a_detail = (
+                f"Inicial/final: {_safe(calibration.get('initial_a_day'), 6)} / "
+                f"{_safe(calibration.get('a_day'), 6)} 1/día"
+            )
+        if a_bounds:
+            a_detail += f"; límites: {_safe(a_bounds[0], 6)} a {_safe(a_bounds[1], 6)} 1/día"
+        calibration_rows.append(["Agotamiento a", a_detail])
+        balance_detail = f"Combinaciones rechazadas: {calibration.get('rejected_trials', 'N/D')}"
+        if calibration.get("retention_limit_mm") is not None:
+            balance_detail += f"; límite físico de R: {_safe(calibration.get('retention_limit_mm'))} mm/año"
+        calibration_rows.append(["Control de balance físico", balance_detail])
+        body.append(_table(calibration_rows, [3900, 5460], font_size=9))
         body.append(_paragraph(
-            f"Función objetivo: {calibration.get('objective', 'N/D')}. Evaluaciones: "
-            f"{calibration.get('trials', 'N/D')}. La validación utilizó los parámetros finales sin recalibrarlos."
+            "La validación utilizó los parámetros finales sin recalibrarlos.",
+            italic=True, color="4B5563", before=4,
         ))
+        initial_metrics = calibration.get("initial_metrics_calibration") or {}
+        final_metrics = calibration.get("final_metrics_calibration") or {}
+        if initial_metrics or final_metrics:
+            body.append(_paragraph("Cambio del ajuste mensual en calibración", style="Heading3"))
+            body.append(_table([
+                ["Estado", "NSE", "LogNSE", "KGE", "PBIAS (%)"],
+                ["Inicial", _safe(initial_metrics.get("NSE")), _safe(initial_metrics.get("LogNSE")),
+                 _safe(initial_metrics.get("KGE")), _safe(initial_metrics.get("PBIAS_porcentaje"))],
+                ["Final", _safe(final_metrics.get("NSE")), _safe(final_metrics.get("LogNSE")),
+                 _safe(final_metrics.get("KGE")), _safe(final_metrics.get("PBIAS_porcentaje"))],
+            ], [2100, 1500, 1800, 1500, 2460], font_size=9))
+        elif calibration.get("initial_error"):
+            body.append(_paragraph(
+                "El punto inicial no produjo un balance físico válido; la búsqueda continuó dentro de los límites "
+                "definidos hasta encontrar una combinación admisible.",
+                italic=True, color="4B5563",
+            ))
         if calibration.get("physical_balance_enforced"):
             body.append(_paragraph(
                 "La búsqueda descartó automáticamente las combinaciones que no mantuvieron "
@@ -277,11 +397,17 @@ def create_word_report(result, outputs, png_paths, output_path):
             italic=True, color="4B5563",
         ))
 
-    body.append(_paragraph("3. Indicadores de desempeño", style="Heading1", page_break_before=True))
+    body.append(_page_break())
+    body.append(_paragraph("3. Indicadores de desempeño", style="Heading1"))
     body.append(_table(_metric_rows(result), [1650, 1300, 650, 1150, 1450, 1150, 2010], font_size=9))
     body.append(_paragraph(
         "Los indicadores comparan caudal observado y simulado. La validación es independiente y no modifica los parámetros.",
         italic=True, color="4B5563", before=4, after=4,
+    ))
+    body.append(_paragraph(
+        "Convención de PBIAS: 100 × Σ(Qsim - Qobs) / ΣQobs. Un valor negativo indica subestimación "
+        "global del caudal y un valor positivo indica sobreestimación.",
+        italic=True, color="4B5563", after=4,
     ))
 
     image_order = [
@@ -296,14 +422,19 @@ def create_word_report(result, outputs, png_paths, output_path):
             image_entries.append((key, heading, caption, Path(image_path)))
 
     for index, (_key, heading, caption, _image_path) in enumerate(image_entries, start=1):
-        body.append(_paragraph(heading, style="Heading1", page_break_before=True))
-        body.append(_paragraph(
+        body.append(_page_break())
+        body.append(_figure_heading_block(
+            heading,
             f"Figura {index}. {caption}: serie mensual, caudal anual, régimen multimensual y dispersión.",
-            italic=True, color="4B5563", keep_next=True,
         ))
-        body.append(_image_paragraph(f"rIdImage{index}", caption, index))
+        body.append(_image_paragraph(
+            f"rIdImage{index}", caption, index,
+            width_emu=5532120, height_emu=3688080,
+        ))
 
-    body.append(_paragraph("7. Conclusiones automáticas", style="Heading1", page_break_before=bool(image_entries)))
+    if image_entries:
+        body.append(_page_break())
+    body.append(_paragraph("7. Conclusiones automáticas", style="Heading1"))
     for paragraph in _conclusion(result):
         body.append(_paragraph(paragraph))
     body.append(_paragraph("Archivos de respaldo", style="Heading2"))
@@ -312,9 +443,10 @@ def create_word_report(result, outputs, png_paths, output_path):
         "parámetros y manifiesto de trazabilidad."
     ))
     if balance.get("negative_months"):
+        body.append(_page_break())
         body.append(_paragraph(
             "Anexo A. Trazabilidad del balance exploratorio",
-            style="Heading1", page_break_before=True,
+            style="Heading1",
         ))
         body.append(_paragraph(
             "Este anexo documenta los valores originales de una ejecución manual con recorte "

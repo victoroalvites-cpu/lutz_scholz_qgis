@@ -173,6 +173,11 @@ def calibrate_parameters(records, base_parameters, retention_config, calibration
     r_lo, r_hi = map(float, r_bounds)
     a_lo, a_hi = map(float, a_bounds)
     c_lo, c_hi = map(float, c_bounds)
+    original_bounds = {
+        "coefficient": [c_lo, c_hi],
+        "retention_mm": [r_lo, r_hi],
+        "a_day": [a_lo, a_hi],
+    }
     if not (0 <= r_lo < r_hi and 0 < a_lo < a_hi):
         raise LutzError("Los limites de R o a no son validos.")
     if calibrate_c and not (0 <= c_lo < c_hi <= 1):
@@ -284,6 +289,11 @@ def calibrate_parameters(records, base_parameters, retention_config, calibration
     best["objective"] = objective
     best["calibrated_c"] = bool(calibrate_c)
     best["initial_coefficient"] = float(base_parameters.coef_escorrentia)
+    best["initial_retention_mm"] = float(base_parameters.retencion_mm)
+    best["initial_a_day"] = float(initial_a)
+    best["search_bounds"] = original_bounds
+    best["steps_per_axis"] = int(steps)
+    best["refinements"] = 2
     best["initial_result"] = initial_result
     best["initial_error"] = initial_error
     best["physical_balance_enforced"] = True

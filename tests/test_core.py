@@ -82,6 +82,11 @@ class LutzCoreTests(unittest.TestCase):
         self.assertTrue(best["physical_balance_enforced"])
         self.assertEqual(best["result"]["parameters"]["negative_balance_mode"], "strict")
         self.assertFalse(best["result"]["balance_diagnostics"]["annual_balance_modified"])
+        self.assertEqual(best["initial_retention_mm"], 200.0)
+        self.assertEqual(best["initial_a_day"], 0.02)
+        self.assertEqual(best["search_bounds"]["retention_mm"], [0.0, 20.0])
+        self.assertEqual(best["steps_per_axis"], 4)
+        self.assertEqual(best["refinements"], 2)
 
     def test_automatic_calibration_rejects_bounds_without_physical_solution(self):
         records = [
