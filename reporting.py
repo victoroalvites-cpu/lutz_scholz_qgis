@@ -71,6 +71,79 @@ def _safe(value, decimals=3):
     return str(value)
 
 
+def _display_modeling_id(value):
+    """Presenta el identificador interno con terminología técnica legible."""
+
+    text = str(value or "N/D")
+    if text.startswith("corrida_"):
+        return f"modelacion_{text[len('corrida_'):]}"
+    return text
+
+
+def _display_datetime(value):
+    text = str(value or "N/D")
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return text
+    offset = parsed.strftime("%z")
+    suffix = f" (UTC{offset[:3]}:{offset[3:]})" if offset else ""
+    return parsed.strftime("%d/%m/%Y %H:%M:%S") + suffix
+
+
+def _display_label(value):
+    text = str(value or "N/D").replace("_", " ").strip()
+    return text[:1].upper() + text[1:] if text else "N/D"
+
+
+def _display_mode(value):
+    text = str(value or "N/D").strip()
+    return {
+        "automatica": "Calibración automática",
+        "automática": "Calibración automática",
+        "manual": "Modelación manual",
+    }.get(text.lower(), _display_label(text))
+
+
+def _display_split(value):
+    text = str(value or "N/D").strip()
+    return {
+        "cronologico_60_40": "Cronológica 60/40",
+        "auto_60_40": "Cronológica 60/40",
+        "manual": "Definida manualmente",
+    }.get(text.lower(), _display_label(text))
+
+
+def _display_climate_source(value):
+    text = str(value or "N/D").strip()
+    exact = {
+        "PISCO precipitacion mensual (solo precipitacion)": "PISCO: precipitación mensual",
+        "PISCO temperatura mensual (solo temperatura)": "PISCO: temperatura mensual",
+        "PISCO T extendida con ERA5-Land corregido (solo temperatura)":
+            "PISCO T extendida y corregida con ERA5-Land",
+        "ERA5-Land temperatura mensual (promedio de extremos diarios)":
+            "ERA5-Land: temperatura mensual (promedio de extremos diarios)",
+        "CHIRPS Daily precipitacion": "CHIRPS Daily: precipitación",
+    }
+    if text in exact:
+        return exact[text]
+    return (
+        text.replace("precipitacion", "precipitación")
+        .replace("(solo precipitación)", "")
+        .replace("(solo temperatura)", "")
+        .strip()
+    )
+
+
+def _display_supply_source(value):
+    text = str(value or "N/D").strip()
+    return {
+        "tabla manual/editada": "Tabla manual o editada",
+        "hoja Gasto_Abastecimiento del Excel":
+            "Hoja «Gasto_Abastecimiento» del archivo Excel",
+    }.get(text, _display_label(text))
+
+
 def _run(text, bold=False, color=None, size=None, italic=False):
     properties = []
     if bold:
@@ -219,15 +292,16 @@ def _conclusion(result):
     paragraphs = []
     if cal.get("NSE") is not None:
         paragraphs.append(
-            f"En calibración mensual se obtuvo NSE={cal['NSE']:.3f}, KGE={_safe(cal.get('KGE'))} "
-            f"y PBIAS={_safe(cal.get('PBIAS_porcentaje'))} %."
+            f"Durante la calibración, los indicadores mensuales fueron: NSE = {cal['NSE']:.3f}, "
+            f"KGE = {_safe(cal.get('KGE'))} y PBIAS = {_safe(cal.get('PBIAS_porcentaje'))} %."
         )
     if val.get("NSE") is not None:
         delta_nse = val["NSE"] - cal.get("NSE", val["NSE"])
         direction_nse = "aumentó" if delta_nse >= 0 else "disminuyó"
         paragraphs.append(
-            f"La validación independiente alcanzó NSE={val['NSE']:.3f}; frente a calibración "
-            f"{direction_nse} {abs(delta_nse):.3f}. Los parámetros se mantuvieron fijos durante esta evaluación."
+            f"En la validación independiente se obtuvo NSE = {val['NSE']:.3f}. Respecto de la calibración, "
+            f"el NSE {direction_nse} en {abs(delta_nse):.3f}. Esta evaluación utilizó los parámetros "
+            "calibrados sin reajustarlos."
         )
         if val.get("KGE") is not None and cal.get("KGE") is not None:
             delta_kge = val["KGE"] - cal["KGE"]
@@ -239,7 +313,8 @@ def _conclusion(result):
             )
             paragraphs.append(
                 f"El KGE mensual de validación fue {_safe(val.get('KGE'))} y "
-                f"{direction_kge} {abs(delta_kge):.3f} respecto de calibración; el modelo {transfer}."
+                f"{direction_kge} en {abs(delta_kge):.3f} respecto del valor de calibración; "
+                f"el modelo {transfer}."
             )
         if val.get("LogNSE") is not None and cal.get("LogNSE") is not None:
             delta_log = val["LogNSE"] - cal["LogNSE"]
@@ -263,7 +338,7 @@ def _conclusion(result):
                 "los eventos mayores y no debe asumirse la misma precisión para todos los picos."
             )
     if not paragraphs:
-        paragraphs.append("La corrida se completó y conserva sus resultados para revisión técnica.")
+        paragraphs.append("La modelación finalizó correctamente y conserva sus resultados para revisión técnica.")
     return paragraphs
 
 
@@ -282,23 +357,23 @@ def create_word_report(result, outputs, png_paths, output_path):
     body.append(_paragraph("Modelo hidrológico mensual Lutz Scholz", size=14, color="4B5563", after=14))
     body.append(_table([
         ["Campo", "Valor"],
-        ["Corrida", metadata.get("run_id", "N/D")],
-        ["Escenario", metadata.get("scenario", "N/D")],
-        ["Fecha de ejecución", metadata.get("created_at", "N/D")],
+        ["Identificador de modelación", _display_modeling_id(metadata.get("run_id"))],
+        ["Escenario", _display_label(metadata.get("scenario"))],
+        ["Fecha y hora", _display_datetime(metadata.get("created_at"))],
         ["Versión del complemento", result.get("version", "N/D")],
-        ["Modo", metadata.get("calibration_mode", "N/D")],
-    ], [2700, 6660]))
+        ["Modalidad", _display_mode(metadata.get("calibration_mode"))],
+    ], [3300, 6060]))
 
     body.append(_paragraph("1. Configuración y trazabilidad", style="Heading1"))
     body.append(_table([
         ["Elemento", "Configuración"],
         ["Archivo de entrada", metadata.get("input_file", "N/D")],
-        ["Precipitación", metadata.get("precipitation_source", "N/D")],
-        ["Temperatura", metadata.get("temperature_source", "N/D")],
+        ["Precipitación", _display_climate_source(metadata.get("precipitation_source"))],
+        ["Temperatura", _display_climate_source(metadata.get("temperature_source"))],
         ["ETP", metadata.get("etp_method", "N/D")],
-        ["División temporal", metadata.get("split_method", "N/D")],
-        ["Abastecimiento", metadata.get("supply_source", "N/D")],
-        ["Retención espacial", metadata.get("retention_source", "N/D")],
+        ["División temporal", _display_split(metadata.get("split_method"))],
+        ["Abastecimiento", _display_supply_source(metadata.get("supply_source"))],
+        ["Fuente de retención", _display_label(metadata.get("retention_source"))],
     ], [2700, 6660]))
 
     body.append(_page_break())
@@ -323,11 +398,14 @@ def create_word_report(result, outputs, png_paths, output_path):
         c_bounds = bounds.get("coefficient")
         r_bounds = bounds.get("retention_mm")
         a_bounds = bounds.get("a_day")
-        search_design = (
-            f"{calibration.get('refinements', 'N/D')} mallas sucesivas; "
-            f"{calibration.get('steps_per_axis', 'N/D')} pasos por eje; "
-            f"{calibration.get('trials', 'N/D')} evaluaciones"
-        )
+        search_parts = []
+        if calibration.get("refinements") is not None:
+            search_parts.append(f"{calibration['refinements']} mallas sucesivas")
+        if calibration.get("steps_per_axis") is not None:
+            search_parts.append(f"{calibration['steps_per_axis']} pasos por eje")
+        if calibration.get("trials") is not None:
+            search_parts.append(f"{calibration['trials']} evaluaciones")
+        search_design = "; ".join(search_parts) or "N/D"
         calibration_rows = [
             ["Elemento", "Detalle"],
             ["Función objetivo", calibration.get("objective", "N/D")],
@@ -434,13 +512,13 @@ def create_word_report(result, outputs, png_paths, output_path):
 
     if image_entries:
         body.append(_page_break())
-    body.append(_paragraph("7. Conclusiones automáticas", style="Heading1"))
+    body.append(_paragraph("7. Conclusiones del desempeño", style="Heading1"))
     for paragraph in _conclusion(result):
         body.append(_paragraph(paragraph))
     body.append(_paragraph("Archivos de respaldo", style="Heading2"))
     body.append(_paragraph(
-        "La carpeta de la corrida contiene los datos mensuales, métricas, gráficos vectoriales y raster, "
-        "parámetros y manifiesto de trazabilidad."
+        "La carpeta de la modelación contiene las series mensuales, los indicadores, los parámetros, "
+        "los gráficos en formatos SVG y PNG, y el manifiesto de trazabilidad."
     ))
     if balance.get("negative_months"):
         body.append(_page_break())
@@ -510,7 +588,7 @@ def create_word_report(result, outputs, png_paths, output_path):
     header_xml = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:hdr xmlns:w="{NS_W}"><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>{_run('MODELO LUTZ SCHOLZ | INFORME TÉCNICO', color='6B7280', size=9)}</w:p></w:hdr>'''
     footer_xml = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:ftr xmlns:w="{NS_W}"><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>{_run(metadata.get('run_id', 'Corrida Lutz Scholz'), color='6B7280', size=9)}</w:p></w:ftr>'''
+<w:ftr xmlns:w="{NS_W}"><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>{_run(_display_modeling_id(metadata.get('run_id', 'Modelación Lutz Scholz')), color='6B7280', size=9)}</w:p></w:ftr>'''
     now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     core_xml = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Informe técnico Lutz Scholz</dc:title><dc:creator>Modelo Lutz Scholz para QGIS</dc:creator><cp:lastModifiedBy>Modelo Lutz Scholz para QGIS</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">{now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">{now}</dcterms:modified></cp:coreProperties>'''

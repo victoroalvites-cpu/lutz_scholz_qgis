@@ -97,6 +97,11 @@ Word conserva los valores iniciales y finales, los límites y la resolución de
 la búsqueda automática, las combinaciones rechazadas por balance físico y la
 comparación del ajuste antes y después de calibrar.
 
+En el informe, los identificadores internos se presentan con terminología
+técnica legible: «modelación», «calibración automática», «Escenario base» y
+«Cronológica 60/40». Los nombres de carpetas `corrida_*` se mantienen
+internamente para conservar compatibilidad y trazabilidad.
+
 La convención de sesgo utilizada es
 `PBIAS = 100 * suma(Qsim - Qobs) / suma(Qobs)`: un valor negativo representa
 subestimación global y uno positivo, sobreestimación. Las conclusiones separan

@@ -49,8 +49,15 @@ class ReportingTests(unittest.TestCase):
                 "retention_limit_mm": 13.5,
             },
             "run_metadata": {
-                "run_id": "qa_estricto",
+                "run_id": "corrida_20260902_162103",
+                "scenario": "escenario_base",
+                "created_at": "2026-09-02T16:21:03-05:00",
                 "calibration_mode": "automatica",
+                "precipitation_source": "PISCO precipitacion mensual (solo precipitacion)",
+                "temperature_source": "PISCO T extendida con ERA5-Land corregido (solo temperatura)",
+                "split_method": "cronologico_60_40",
+                "supply_source": "tabla manual/editada",
+                "retention_source": "Manual",
             },
         }
         with tempfile.TemporaryDirectory() as folder:
@@ -66,6 +73,18 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("trazabilidad de la búsqueda", document_xml)
             self.assertIn("Combinaciones rechazadas", document_xml)
             self.assertIn("Convención de PBIAS", document_xml)
+            self.assertIn("Identificador de modelación", document_xml)
+            self.assertIn("modelacion_20260902_162103", document_xml)
+            self.assertIn("Escenario base", document_xml)
+            self.assertIn("02/09/2026 16:21:03 (UTC-05:00)", document_xml)
+            self.assertIn("Calibración automática", document_xml)
+            self.assertIn("PISCO: precipitación mensual", document_xml)
+            self.assertIn("PISCO T extendida y corregida con ERA5-Land", document_xml)
+            self.assertIn("Cronológica 60/40", document_xml)
+            self.assertIn("Tabla manual o editada", document_xml)
+            self.assertIn("Conclusiones del desempeño", document_xml)
+            self.assertIn("La carpeta de la modelación", document_xml)
+            self.assertNotIn(">Corrida<", document_xml)
 
     def test_conclusions_explain_validation_changes_and_pbias_sign(self):
         result = {
@@ -90,7 +109,7 @@ class ReportingTests(unittest.TestCase):
             create_word_report(result, {}, {}, str(report))
             with ZipFile(report) as archive:
                 document_xml = archive.read("word/document.xml").decode("utf-8")
-            self.assertIn("NSE=0.625", document_xml)
+            self.assertIn("NSE = 0.625", document_xml)
             self.assertIn("KGE mensual de validación", document_xml)
             self.assertIn("ajuste de caudales bajos es más débil", document_xml)
             self.assertIn("subestimación global", document_xml)
