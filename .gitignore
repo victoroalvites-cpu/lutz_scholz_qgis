@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.log
+.coverage
+.pytest_cache/
+
+# Dependencias locales: no forman parte del paquete público.
+vendor/
+
+# Archivos auxiliares de inspección y manuales de desarrollo posteriores.
+*.inspect.ndjson
+docs/Manual_Usuario_Lutz_Scholz_QGIS_v0.[2-9]*.docx
