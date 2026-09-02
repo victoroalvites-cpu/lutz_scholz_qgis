@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import sys
 
 from qgis.PyQt.QtCore import QDate, QSettings, QStandardPaths, Qt
 from qgis.PyQt.QtSvg import QSvgWidget
 from qgis.PyQt.QtWidgets import (
-    QAbstractItemView, QComboBox, QDateEdit, QFileDialog, QFormLayout, QGridLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
-    QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QApplication, QComboBox, QDateEdit, QFileDialog,
+    QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QTableWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget,
 )
 from qgis.core import (
     QgsApplication, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
@@ -48,6 +51,7 @@ class GeeClimateWidget(QWidget):
         self.project_folders = {}
         self._busy = 0
         self._current_task = None
+        self._dependency_available = False
         self._build_ui()
         self._load_settings()
         self._show_dependency_status()
@@ -72,6 +76,8 @@ class GeeClimateWidget(QWidget):
         self.cancel_button = QPushButton("Cancelar operacion")
         self.cancel_button.clicked.connect(self._cancel_current_task)
         self.cancel_button.setEnabled(False)
+        self.install_help_button = QPushButton("Ver instrucciones de instalación")
+        self.install_help_button.clicked.connect(self._show_installation_help)
         self.connection_status = QLabel("Sin comprobar")
         self.connection_status.setWordWrap(True)
         grid.addWidget(QLabel("Proyecto Cloud"), 0, 0)
@@ -81,6 +87,7 @@ class GeeClimateWidget(QWidget):
         grid.addWidget(self.check_button, 1, 2)
         grid.addWidget(self.cancel_button, 1, 3)
         grid.addWidget(self.connection_status, 1, 0, 1, 2)
+        grid.addWidget(self.install_help_button, 2, 0, 1, 4)
         layout.addWidget(connection)
 
         sources = QGroupBox("Fuentes climaticas separadas, cuenca y periodo")
@@ -182,10 +189,63 @@ class GeeClimateWidget(QWidget):
 
     def _show_dependency_status(self):
         status = dependency_status()
-        if status.get("available"):
-            self.connection_status.setText(f"API Earth Engine disponible (version {status.get('version')}). Falta comprobar la cuenta.")
+        self._dependency_available = bool(status.get("available"))
+        if self._dependency_available:
+            self.connection_status.setText(
+                f"API Earth Engine disponible (version {status.get('version')}). "
+                "Falta comprobar la cuenta."
+            )
         else:
-            self.connection_status.setText(str(status.get("error")))
+            self.connection_status.setText(
+                "Clima GEE es opcional y está deshabilitado porque Earth Engine API "
+                "no está instalada. El modelo local funciona normalmente. Pulse "
+                "«Ver instrucciones de instalación» para habilitar PISCO, ERA5-Land "
+                "y CHIRPS."
+            )
+        self._set_gee_controls_enabled(self._dependency_available)
+
+    def _set_gee_controls_enabled(self, enabled):
+        for button in (
+            self.connect_button, self.change_button, self.check_button,
+            self.inspect_precip_button, self.download_precip_button,
+            self.inspect_temp_button, self.download_temp_button,
+            self.diagnose_button,
+        ):
+            button.setEnabled(bool(enabled))
+
+    def _show_installation_help(self):
+        python_executable = Path(sys.prefix) / (
+            "python.exe" if os.name == "nt" else "bin/python"
+        )
+        command = f'"{python_executable}" -m pip install --user earthengine-api'
+        message = QMessageBox(self)
+        message.setWindowTitle("Habilitar Clima GEE")
+        message.setIcon(QMessageBox.Information)
+        message.setText(
+            "Clima GEE es una función opcional. El modelo Lutz Scholz local funciona "
+            "sin instalar componentes adicionales."
+        )
+        message.setInformativeText(
+            "Para usar PISCO, ERA5-Land o CHIRPS, ejecute el comando mostrado en una "
+            "terminal, cierre completamente QGIS, vuelva a abrirlo y pulse "
+            "«Conectar / autorizar». También necesitará una cuenta habilitada en "
+            "Google Earth Engine."
+        )
+        message.setDetailedText(
+            "Comando para el Python de esta instalación de QGIS:\n\n"
+            f"{command}\n\n"
+            "Después de instalar:\n"
+            "1. Cierre todas las ventanas de QGIS.\n"
+            "2. Abra QGIS nuevamente.\n"
+            "3. Regrese a Clima GEE y autorice su cuenta.\n\n"
+            "Nota: los assets PISCO requieren permisos de lectura; ERA5-Land y "
+            "CHIRPS usan colecciones públicas de Earth Engine."
+        )
+        copy_button = message.addButton("Copiar comando", QMessageBox.ActionRole)
+        message.addButton("Cerrar", QMessageBox.RejectRole)
+        message.exec_()
+        if message.clickedButton() is copy_button:
+            QApplication.clipboard().setText(command)
 
     def _append_log(self, text):
         self.log.appendPlainText(str(text))
@@ -193,7 +253,7 @@ class GeeClimateWidget(QWidget):
     def _set_busy(self, busy):
         self._busy += 1 if busy else -1
         self._busy = max(0, self._busy)
-        enabled = self._busy == 0
+        enabled = self._busy == 0 and self._dependency_available
         for button in (
             self.connect_button, self.change_button, self.check_button,
             self.inspect_precip_button, self.download_precip_button,
