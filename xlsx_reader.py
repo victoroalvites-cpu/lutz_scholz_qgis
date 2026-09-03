@@ -6,7 +6,7 @@ import posixpath
 import zipfile
 from datetime import date, timedelta
 from pathlib import Path
-from xml.etree import ElementTree as ET
+from xml.etree import ElementTree as ET  # nosec B405 -- se valida antes de analizar
 
 from .core import LutzError
 
@@ -14,6 +14,23 @@ from .core import LutzError
 MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
+MAX_XML_BYTES = 32 * 1024 * 1024
+
+
+def _safe_xml_from_archive(archive, member):
+    """Lee OOXML sin DTD, entidades ni miembros XML desproporcionados."""
+
+    try:
+        info = archive.getinfo(member)
+    except KeyError as error:
+        raise LutzError(f"El XLSX no contiene {member}.") from error
+    if info.file_size > MAX_XML_BYTES:
+        raise LutzError(f"El miembro XML {member} supera el limite de seguridad.")
+    payload = archive.read(info)
+    lowered = payload[:4096].lower()
+    if b"<!doctype" in lowered or b"<!entity" in lowered:
+        raise LutzError(f"El miembro XML {member} contiene declaraciones no permitidas.")
+    return ET.fromstring(payload)  # nosec B314 -- DTD y entidades rechazadas arriba
 
 
 def _column_index(reference):
@@ -50,8 +67,8 @@ def read_xlsx_sheets(path):
         raise LutzError("El archivo no es un XLSX valido.") from error
     with archive:
         try:
-            workbook = ET.fromstring(archive.read("xl/workbook.xml"))
-            relations = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+            workbook = _safe_xml_from_archive(archive, "xl/workbook.xml")
+            relations = _safe_xml_from_archive(archive, "xl/_rels/workbook.xml.rels")
         except (KeyError, ET.ParseError) as error:
             raise LutzError("El XLSX no contiene una estructura de libro valida.") from error
         relation_map = {
@@ -60,7 +77,7 @@ def read_xlsx_sheets(path):
         }
         shared = []
         if "xl/sharedStrings.xml" in archive.namelist():
-            root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+            root = _safe_xml_from_archive(archive, "xl/sharedStrings.xml")
             for item in root.findall(f"{{{MAIN}}}si"):
                 shared.append("".join(node.text or "" for node in item.iter(f"{{{MAIN}}}t")))
         result = {}
@@ -68,7 +85,7 @@ def read_xlsx_sheets(path):
             name = sheet.attrib["name"]
             target = relation_map[sheet.attrib[f"{{{REL}}}id"]].lstrip("/")
             xml_path = posixpath.normpath(target if target.startswith("xl/") else posixpath.join("xl", target))
-            root = ET.fromstring(archive.read(xml_path))
+            root = _safe_xml_from_archive(archive, xml_path)
             rows = []
             for row in root.findall(f".//{{{MAIN}}}row"):
                 values = []

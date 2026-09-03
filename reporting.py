@@ -9,8 +9,8 @@ from __future__ import annotations
 import json
 import math
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
-from xml.sax.saxutils import escape
 from zipfile import ZIP_DEFLATED, ZipFile
 
 
@@ -33,7 +33,7 @@ def svg_to_png(svg_path: str, png_path: str, width: int = 2400, height: int = 16
     renderer = QSvgRenderer(str(svg_path))
     if not renderer.isValid():
         raise ValueError(f"No se pudo interpretar el SVG: {svg_path}")
-    image = QImage(width, height, QImage.Format_ARGB32)
+    image = QImage(width, height, QImage.Format.Format_ARGB32)
     image.fill(QColor("white"))
     painter = QPainter(image)
     renderer.render(painter, QRectF(0, 0, width, height))

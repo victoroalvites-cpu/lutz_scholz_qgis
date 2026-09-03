@@ -108,7 +108,7 @@ class GeeClimateWidget(QWidget):
         self.pisco_p_edit = QLineEdit(DEFAULT_PISCO_PRECIP)
         self.pisco_t_edit = QLineEdit(DEFAULT_PISCO_TEMP)
         self.basin_combo = QgsMapLayerComboBox()
-        self.basin_combo.setFilters(QgsMapLayerProxyModel.PolygonLayer)
+        self.basin_combo.setFilters(QgsMapLayerProxyModel.Filter.PolygonLayer)
         active_button = QPushButton("Usar capa activa")
         active_button.clicked.connect(self._use_active_layer)
         self.start_edit = QDateEdit(QDate(1981, 1, 1))
@@ -158,7 +158,7 @@ class GeeClimateWidget(QWidget):
             status.setWordWrap(True)
             layout.addWidget(status)
 
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Orientation.Vertical)
         result_box = QWidget(); result_layout = QVBoxLayout(result_box); result_layout.setContentsMargins(0, 0, 0, 0)
         self.table_note = QLabel(
             "Vista previa: todavia no se ha descargado una fuente. Cambiar un selector "
@@ -169,7 +169,7 @@ class GeeClimateWidget(QWidget):
         self.table = QTableWidget(0, 9)
         self.table.setHorizontalHeaderLabels(("Fecha", "P mm", "Tmin C", "Tmedia C", "Tmax C", "Cobertura %", "Imagenes", "Fuente", "Metodo"))
         self.table.verticalHeader().setVisible(False)
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setStretchLastSection(True)
         result_layout.addWidget(self.table)
         self.plot = QSvgWidget(); self.plot.setMinimumHeight(300)
@@ -246,7 +246,7 @@ class GeeClimateWidget(QWidget):
         )
         message = QMessageBox(self)
         message.setWindowTitle("Habilitar Clima GEE")
-        message.setIcon(QMessageBox.Information)
+        message.setIcon(QMessageBox.Icon.Information)
         message.setText(
             "Clima GEE es una función opcional. El modelo Lutz Scholz local funciona "
             "sin instalar componentes adicionales."
@@ -267,9 +267,9 @@ class GeeClimateWidget(QWidget):
             "Nota: los assets PISCO requieren permisos de lectura; ERA5-Land y "
             "CHIRPS usan colecciones públicas de Earth Engine."
         )
-        copy_button = message.addButton("Copiar comando", QMessageBox.ActionRole)
-        message.addButton("Cerrar", QMessageBox.RejectRole)
-        message.exec_()
+        copy_button = message.addButton("Copiar comando", QMessageBox.ButtonRole.ActionRole)
+        message.addButton("Cerrar", QMessageBox.ButtonRole.RejectRole)
+        message.exec()
         if message.clickedButton() is copy_button:
             QApplication.clipboard().setText(command)
 
@@ -565,7 +565,9 @@ class GeeClimateWidget(QWidget):
                         f"{row.get('expected_image_count')} dias."
                     )
                 self.table.setItem(row_index, column, item)
-        temp_folder = Path(QStandardPaths.writableLocation(QStandardPaths.TempLocation)) / "lutz_scholz_qgis"
+        temp_folder = Path(
+            QStandardPaths.writableLocation(QStandardPaths.StandardLocation.TempLocation)
+        ) / "lutz_scholz_qgis"
         plot_path = create_climate_svg(rows, temp_folder / "serie_climatica_gee.svg", self.active_title)
         self.plot.load(plot_path)
 

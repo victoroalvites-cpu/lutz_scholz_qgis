@@ -1,7 +1,7 @@
 # Lutz Scholz para QGIS
 
 Complemento para la simulación hidrológica mensual mediante el método de
-Lutz Scholz. La edición pública `0.2.0` integra preparación de datos,
+Lutz Scholz. La edición pública `0.2.1` integra preparación de datos,
 calibración, validación independiente, diagnóstico gráfico y reporte técnico
 en una sola interfaz de QGIS.
 
@@ -51,7 +51,7 @@ ni sustituyen archivos existentes.
 
 ## Instalación
 
-1. Descargue `Lutz_Scholz_QGIS_v0.2.0.zip`.
+1. Descargue `Lutz_Scholz_QGIS_v0.2.1.zip`.
 2. En QGIS 3.40 o posterior abra **Complementos > Administrar e instalar
    complementos > Instalar desde ZIP**.
 3. Seleccione el ZIP y acepte la instalación experimental cuando QGIS lo

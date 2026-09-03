@@ -240,14 +240,14 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
         writer.writerows(rows)
 
     matrix_paths = {}
-    for origin, field, filename in (
+    for origin, field_name, filename in (
         ("simulado", "caudal_simulado_m3s", "matriz_caudales_simulados.csv"),
         ("observado", "caudal_observado_m3s", "matriz_caudales_observados.csv"),
         ("transferido", "caudal_transferido_m3s", "matriz_caudales_transferidos.csv"),
     ):
-        if any(row.get(field) is not None for row in rows):
+        if any(row.get(field_name) is not None for row in rows):
             path = data_folder / filename
-            _write_monthly_flow_matrix(path, rows, field)
+            _write_monthly_flow_matrix(path, rows, field_name)
             matrix_paths[origin] = path
 
     with metrics_path.open("w", encoding="utf-8-sig", newline="") as handle:

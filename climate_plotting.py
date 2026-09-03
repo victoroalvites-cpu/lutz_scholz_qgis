@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import math
+from html import escape
 from pathlib import Path
-from xml.sax.saxutils import escape
 
 
 COLORS = {

@@ -18,7 +18,11 @@ from .core import LutzError, calculate_retention_components
 
 def load_polygon_layer(path, name):
     layer = QgsVectorLayer(path, name, "ogr")
-    if not layer.isValid() or QgsWkbTypes.geometryType(layer.wkbType()) != QgsWkbTypes.PolygonGeometry:
+    if (
+        not layer.isValid()
+        or QgsWkbTypes.geometryType(layer.wkbType())
+        != QgsWkbTypes.GeometryType.PolygonGeometry
+    ):
         raise LutzError(f"La capa {name} no es una capa poligonal valida.")
     QgsProject.instance().addMapLayer(layer)
     return layer
@@ -46,7 +50,10 @@ def _measure_km2(geometry, crs):
     distance.setSourceCrs(crs, QgsProject.instance().transformContext())
     distance.setEllipsoid(QgsProject.instance().ellipsoid() or "WGS84")
     square_metres = distance.measureArea(geometry)
-    return distance.convertAreaMeasurement(square_metres, QgsUnitTypes.AreaSquareKilometers)
+    return distance.convertAreaMeasurement(
+        square_metres,
+        QgsUnitTypes.AreaUnit.AreaSquareKilometers,
+    )
 
 
 def basin_area_km2(basin_layer):

@@ -60,7 +60,7 @@ class LutzScholzDialog(QDialog):
         self.last_report_path = None
         self.project_folders = {}
         self.setWindowTitle(f"Modelo Lutz Scholz - v{PLUGIN_VERSION}")
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMinMaxButtonsHint)
         self.setMinimumSize(680, 480)
         self.setSizeGripEnabled(True)
         self._build_ui()
@@ -85,15 +85,15 @@ class LutzScholzDialog(QDialog):
     def _scroll(self, content):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
-        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        scroll.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
+        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         scroll.setMinimumSize(0, 0)
         scroll.setWidget(content)
         return scroll
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setSizeConstraint(QLayout.SetDefaultConstraint)
+        root.setSizeConstraint(QLayout.SizeConstraint.SetDefaultConstraint)
         root.addWidget(self._project_group())
         intro = QLabel(
             f"Modelo mensual Lutz Scholz v{PLUGIN_SERIES}: división temporal, clima trazable, "
@@ -112,12 +112,12 @@ class LutzScholzDialog(QDialog):
         self.tabs.addTab(self._flow_analysis_tab(), "8. Permanencia")
         self.tabs.addTab(self._scroll(self._results_tab()), "9. Resultados")
         self.tabs.setUsesScrollButtons(True)
-        self.tabs.setElideMode(Qt.ElideRight)
+        self.tabs.setElideMode(Qt.TextElideMode.ElideRight)
         self.tabs.setMinimumSize(0, 0)
-        self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         root.addWidget(self.tabs, 1)
         footer = QWidget()
-        footer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        footer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         row = QHBoxLayout(footer)
         row.setContentsMargins(0, 0, 0, 0)
         row.addStretch(1)
@@ -242,7 +242,7 @@ class LutzScholzDialog(QDialog):
         self.etp_annual_table.setHorizontalHeaderLabels(("Año", "Meses válidos", "ET0 total mm/año", "ET0 media mm/mes"))
         for table in (self.etp_monthly_table, self.etp_annual_table):
             table.verticalHeader().setVisible(False)
-            table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
             table.setAlternatingRowColors(True)
             table.horizontalHeader().setStretchLastSection(True)
         self.etp_tables.addTab(self.etp_monthly_table, "Cuadro mensual")
@@ -273,11 +273,11 @@ class LutzScholzDialog(QDialog):
         m.addWidget(explanation); m.addWidget(self.r_excel_status); m.addStretch(1)
         self.r_tabs.addTab(manual, "Manual / Excel")
         spatial = QWidget(); grid = QGridLayout(spatial)
-        self.basin_combo = self._layer_combo(QgsMapLayerProxyModel.PolygonLayer)
-        self.snow_combo = self._layer_combo(QgsMapLayerProxyModel.PolygonLayer, True)
-        self.lagoon_combo = self._layer_combo(QgsMapLayerProxyModel.PolygonLayer, True)
-        self.aquifer_combo = self._layer_combo(QgsMapLayerProxyModel.PolygonLayer, True)
-        self.dem_combo = self._layer_combo(QgsMapLayerProxyModel.RasterLayer, True)
+        self.basin_combo = self._layer_combo(QgsMapLayerProxyModel.Filter.PolygonLayer)
+        self.snow_combo = self._layer_combo(QgsMapLayerProxyModel.Filter.PolygonLayer, True)
+        self.lagoon_combo = self._layer_combo(QgsMapLayerProxyModel.Filter.PolygonLayer, True)
+        self.aquifer_combo = self._layer_combo(QgsMapLayerProxyModel.Filter.PolygonLayer, True)
+        self.dem_combo = self._layer_combo(QgsMapLayerProxyModel.Filter.RasterLayer, True)
         for row, (label, combo, kind) in enumerate((("Cuenca*", self.basin_combo, "vector"), ("Nevados/glaciares", self.snow_combo, "vector"), ("Lagunas/pantanos", self.lagoon_combo, "vector"), ("Acuiferos", self.aquifer_combo, "vector"), ("MDE para pendiente", self.dem_combo, "raster"))):
             button = QPushButton("Importar"); button.clicked.connect(lambda checked=False, c=combo, k=kind, n=label: self._import_layer(c, k, n))
             grid.addWidget(QLabel(label), row, 0); grid.addWidget(combo, row, 1); grid.addWidget(button, row, 2)
@@ -320,7 +320,7 @@ class LutzScholzDialog(QDialog):
         top.addWidget(apply); top.addWidget(from_excel); top.addStretch(1); layout.addLayout(top)
         self.retention_table = QTableWidget(12, 3); self.retention_table.setHorizontalHeaderLabels(("Mes", "Posicion de gasto", "Fraccion de abastecimiento")); self.retention_table.verticalHeader().setVisible(False)
         for row, month in enumerate(MONTHS):
-            item = QTableWidgetItem(month); item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            item = QTableWidgetItem(month); item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.retention_table.setItem(row, 0, item); self.retention_table.setItem(row, 1, QTableWidgetItem(str(DEFAULT_POSITIONS[row]))); self.retention_table.setItem(row, 2, QTableWidgetItem(f"{DEFAULT_SUPPLY[row]:.6f}"))
         self.retention_table.horizontalHeader().setStretchLastSection(True); layout.addWidget(self.retention_table)
         self.retention_table.itemChanged.connect(self._mark_supply_as_manual)
@@ -515,8 +515,8 @@ class LutzScholzDialog(QDialog):
         self.flow_matrix_table.setHorizontalHeaderLabels((
             "Año", *MONTHS, "Q medio",
         ))
-        self.flow_matrix_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.flow_matrix_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.flow_matrix_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.flow_matrix_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.flow_matrix_table.verticalHeader().setVisible(False)
         self.result_tabs.insertTab(
             self.result_tabs.count() - 1, self.flow_matrix_table, "Matriz mensual"
@@ -526,8 +526,8 @@ class LutzScholzDialog(QDialog):
             "Mes", "n", "Q medio", "Q10", "Q25", "Q50",
             "Q75 (persistencia 75 %)", "Q90", "Q95", "15 % Q medio",
         ))
-        self.persistence_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.persistence_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.persistence_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.persistence_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.persistence_table.verticalHeader().setVisible(False)
         self.persistence_table.setToolTip(
             "Caudales por mes calendario. Q75 es el caudal igualado o excedido el 75 % del tiempo."
@@ -619,7 +619,7 @@ class LutzScholzDialog(QDialog):
                 text = value if isinstance(value, str) else ("N/D" if value is None else f"{float(value):.4f}")
                 cell = QTableWidgetItem(text)
                 if column > 0:
-                    cell.setTextAlignment(Qt.AlignCenter)
+                    cell.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.flow_matrix_table.setItem(row, column, cell)
         self.flow_matrix_table.resizeColumnsToContents()
 
@@ -650,7 +650,7 @@ class LutzScholzDialog(QDialog):
                 text = value if isinstance(value, str) else ("N/D" if value is None else f"{value:.4f}")
                 cell = QTableWidgetItem(text)
                 if column > 0:
-                    cell.setTextAlignment(Qt.AlignCenter)
+                    cell.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.persistence_table.setItem(row, column, cell)
         self.persistence_table.resizeColumnsToContents()
 
@@ -1309,7 +1309,7 @@ class LutzScholzDialog(QDialog):
         if not self.records: return
         output = self.output_edit.text().strip()
         if not output: QMessageBox.warning(self, "Salida", "Seleccione una carpeta de resultados."); return
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             records = self._prepared_records(); parameters = self._base_parameters(); retention = self._retention_config()
             calibration_period, validation = self._validated_periods(records)

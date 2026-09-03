@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import importlib
 import json
+import logging
 import math
 import os
 import subprocess
@@ -38,8 +39,8 @@ class SourceDefinition:
     spatial_reducer: str = "area_weighted"
 
 
-DEFAULT_PISCO_PRECIP = "projects/ee-hidrog/assets/PISCO/PISCOp_v3_monthly"
-DEFAULT_PISCO_TEMP = "projects/ee-hidrog/assets/PISCO/PISCOt_v1_monthly"
+DEFAULT_PISCO_PRECIP = "projects/ee-hidrog/assets/PISCO/PISCOp_v3_monthly"  # pragma: allowlist secret
+DEFAULT_PISCO_TEMP = "projects/ee-hidrog/assets/PISCO/PISCOt_v1_monthly"  # pragma: allowlist secret
 
 SOURCE_CATALOG = {
     "pisco_p": SourceDefinition(
@@ -141,7 +142,10 @@ def authenticate_ee(project_id: str, force: bool = False) -> Dict[str, object]:
             ee.Number(1).getInfo()
             return {"project": project, "authenticated": True, "reused": True}
         except Exception:
-            pass
+            logging.getLogger(__name__).debug(
+                "Las credenciales GEE almacenadas no se pudieron reutilizar.",
+                exc_info=True,
+            )
     try:
         # Puerto automatico: evita bloqueos cuando 8085 ya esta ocupado.
         ee.Authenticate(auth_mode="localhost:0", force=force)
@@ -172,7 +176,7 @@ def authenticate_ee_external(
     if not python_executable.is_file():
         raise GeeError(f"No se encontro el Python de QGIS en {python_executable}.")
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
-    process = subprocess.Popen(
+    process = subprocess.Popen(  # nosec B603 -- lista cerrada, sin shell
         [str(python_executable), str(helper), project, "1" if force else "0"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -235,7 +239,7 @@ def run_gee_external(
         request_path = Path(folder) / "request.json"
         response_path = Path(folder) / "response.json"
         request_path.write_text(json.dumps(request, ensure_ascii=False), encoding="utf-8")
-        process = subprocess.Popen(
+        process = subprocess.Popen(  # nosec B603 -- ejecutables y archivos locales validados
             [str(python_executable), str(helper), str(request_path), str(response_path)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
