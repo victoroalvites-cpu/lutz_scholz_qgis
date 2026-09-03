@@ -22,6 +22,11 @@ class PlottingTests(unittest.TestCase):
             "parameters": {"area_km2": 1, "coef_escorrentia": .2, "retencion_mm": 1, "a_dia": .02},
             "calibration_period": (2000, 2000),
             "validation_period": (2001, 2001),
+            "run_metadata": {
+                "run_id": "corrida_20260902_200624",
+                "calibration_mode": "automatica",
+                "split_method": "cronologico_60_40",
+            },
         }
         with tempfile.TemporaryDirectory() as folder:
             paths = create_diagnostic_plots(result, folder)
@@ -31,6 +36,7 @@ class PlottingTests(unittest.TestCase):
             panel = Path(paths["panel_diagnostico"]).read_text(encoding="utf-8")
             annual = Path(paths["caudal_anual"]).read_text(encoding="utf-8")
             scatter = Path(paths["dispersion"]).read_text(encoding="utf-8")
+            summary = Path(paths["resumen"]).read_text(encoding="utf-8")
         self.assertIn("2000-01", svg)
         self.assertIn("2001-12", svg)
         self.assertGreaterEqual(svg.count('class="tick"'), 7)
@@ -44,6 +50,11 @@ class PlottingTests(unittest.TestCase):
         self.assertIn("ponderado por dias", annual)
         self.assertIn("Qsim =", scatter)
         self.assertIn("R2=", scatter)
+        self.assertIn("Identificador de modelación", summary)
+        self.assertIn("modelacion_20260902_200624", summary)
+        self.assertIn("Modalidad: Calibración automática", summary)
+        self.assertIn("División temporal: Cronológica 60/40", summary)
+        self.assertNotIn("Corrida:", summary)
 
 
 if __name__ == "__main__":

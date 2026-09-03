@@ -73,6 +73,8 @@ class InputTests(unittest.TestCase):
         self.assertEqual(len(project.records), 24)
         self.assertEqual(len(project.retention_rows), 12)
         self.assertEqual(len(project.components), 3)
+        self.assertEqual(project.config["metodo_r"], "manual")
+        self.assertEqual(project.config["retencion_manual_mm"], 15)
         self.assertTrue(all(record.caudal_observado_m3s is not None for record in project.records))
 
 

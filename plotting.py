@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
 from .core.diagnostics import diagnostic_scales
+from .reporting import _display_mode, _display_modeling_id, _display_split
 
 
 MONTHS = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
@@ -238,26 +239,26 @@ def _summary_svg(result, path):
     parts = _svg_start("Ficha trazable del modelo Lutz Scholz", height=850)
     metadata = result.get("run_metadata", {})
     lines = [
-        "Origen de indicadores: comparacion mensual Q observado vs Q simulado",
-        f"Corrida: {metadata.get('run_id', 'sin identificador')}",
-        f"Modo: {metadata.get('calibration_mode', 'no informado')}",
-        f"Division temporal: {metadata.get('split_method', 'manual/no informada')}",
-        f"Area: {result['parameters']['area_km2']:.3f} km2",
+        "Origen de indicadores: comparación mensual entre Q observado y Q simulado",
+        f"Identificador de modelación: {_display_modeling_id(metadata.get('run_id'))}",
+        f"Modalidad: {_display_mode(metadata.get('calibration_mode'))}",
+        f"División temporal: {_display_split(metadata.get('split_method'))}",
+        f"Área: {result['parameters']['area_km2']:.3f} km²",
         f"C: {result['parameters']['coef_escorrentia']:.5f}",
         f"R: {result['parameters']['retencion_mm']:.3f} mm/año",
-        f"a: {result['parameters']['a_dia']:.6f} 1/dia",
+        f"a: {result['parameters']['a_dia']:.6f} 1/día",
     ]
-    for label, key in (("Calibracion", "calibration"), ("Validacion independiente", "validation")):
+    for label, key in (("Calibración", "calibration"), ("Validación independiente", "validation")):
         values = result.get("diagnostics", {}).get(key, {}).get("monthly")
         if values:
-            lines.extend((label, "Escala: mensual", f"Meses validos: {values.get('n', 0)}",
+            lines.extend((label, "Escala: mensual", f"Meses válidos: {values.get('n', 0)}",
                           f"NSE: {values.get('NSE'):.4f}",
-                          f"LogNSE: {values.get('LogNSE') if values.get('LogNSE') is not None else 'N/D'}",
-                          f"KGE: {values.get('KGE') if values.get('KGE') is not None else 'N/D'}",
+                          f"LogNSE: {values.get('LogNSE'):.4f}" if values.get('LogNSE') is not None else "LogNSE: N/D",
+                          f"KGE: {values.get('KGE'):.4f}" if values.get('KGE') is not None else "KGE: N/D",
                           f"RMSE: {values.get('RMSE'):.4f} m3/s", f"PBIAS: {values.get('PBIAS_porcentaje'):.2f}%"))
     calibration = result.get("automatic_calibration")
     if calibration:
-        lines.extend(("Calibracion automatica", f"Objetivo: {calibration['objective']}", f"Evaluaciones: {calibration['trials']}"))
+        lines.extend(("Calibración automática", f"Objetivo: {calibration['objective']}", f"Evaluaciones: {calibration['trials']}"))
     for index, line in enumerate(lines):
         parts.append(f'<text x="85" y="{75 + index*29}" style="font-family:monospace;font-size:16px">{html.escape(str(line))}</text>')
     return _write(path, parts)

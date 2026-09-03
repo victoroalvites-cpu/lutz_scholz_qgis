@@ -24,7 +24,10 @@ from .core import (
 )
 from .io_utils import read_project, write_results
 from .plotting import create_diagnostic_plots
-from .reporting import create_word_report, export_panel_pngs, finalize_manifest
+from .reporting import (
+    _display_mode, _display_modeling_id, _display_split,
+    create_word_report, export_panel_pngs, finalize_manifest,
+)
 from .spatial_retention import calculate_from_layers, load_polygon_layer
 from .gee_widget import GeeClimateWidget
 from .project_utils import PROJECT_FOLDERS, ensure_project_structure
@@ -42,6 +45,7 @@ class LutzScholzDialog(QDialog):
         self.iface = iface
         self.records = []
         self.project_input = None
+        self.loaded_input_path = None
         self.last_outputs = {}
         self.result_plot_paths = {}
         self.last_run_folder = None
@@ -249,9 +253,21 @@ class LutzScholzDialog(QDialog):
         content = QWidget(); layout = QVBoxLayout(content)
         mode_row = QHBoxLayout(); self.r_mode = QComboBox(); self.r_mode.addItems(("Manual", "Componentes de Excel", "Capas QGIS"))
         self.r_spin = self._spin(0, 10_000, 15, 3, 1)
-        mode_row.addWidget(QLabel("Método R")); mode_row.addWidget(self.r_mode); mode_row.addWidget(QLabel("R (mm/año)")); mode_row.addWidget(self.r_spin); layout.addLayout(mode_row)
+        self.load_excel_r_button = QPushButton("Cargar R del Excel")
+        self.load_excel_r_button.clicked.connect(self._load_retention_from_excel)
+        mode_row.addWidget(QLabel("Método R")); mode_row.addWidget(self.r_mode)
+        mode_row.addWidget(QLabel("R (mm/año)")); mode_row.addWidget(self.r_spin)
+        mode_row.addWidget(self.load_excel_r_button); layout.addLayout(mode_row)
         self.r_tabs = QTabWidget()
-        manual = QWidget(); m = QVBoxLayout(manual); m.addWidget(QLabel("Ingrese R directamente o cargue Componentes_R desde la plantilla Excel.")); m.addStretch(1)
+        manual = QWidget(); m = QVBoxLayout(manual)
+        explanation = QLabel(
+            "Ingrese R directamente o recupere desde el Excel el valor Retencion_Manual_mm "
+            "o el cálculo de la hoja Componentes_R, según el método configurado."
+        )
+        explanation.setWordWrap(True)
+        self.r_excel_status = QLabel("No se ha cargado una retención desde el Excel.")
+        self.r_excel_status.setWordWrap(True)
+        m.addWidget(explanation); m.addWidget(self.r_excel_status); m.addStretch(1)
         self.r_tabs.addTab(manual, "Manual / Excel")
         spatial = QWidget(); grid = QGridLayout(spatial)
         self.basin_combo = self._layer_combo(QgsMapLayerProxyModel.PolygonLayer)
@@ -457,9 +473,11 @@ class LutzScholzDialog(QDialog):
 
     def _load_input(self):
         try:
-            self.project_input = read_project(self.input_edit.text().strip()); self.records = self.project_input.records
+            source_path = Path(self.input_edit.text().strip()).resolve()
+            self.project_input = read_project(str(source_path)); self.records = self.project_input.records
             years = sorted({record.fecha.year for record in self.records})
             if not years: raise LutzError("La serie esta vacia.")
+            self.loaded_input_path = str(source_path)
             self._apply_workbook_retention(); self._apply_workbook_config(); self._apply_workbook_components()
             if self.split_combo.currentData() == "auto_60_40":
                 self._apply_auto_split()
@@ -476,7 +494,8 @@ class LutzScholzDialog(QDialog):
             if observed == 0: self.auto_calibrate.setChecked(False)
             self._refresh_etp_preview(True)
         except Exception as error:
-            self.records = []; QMessageBox.critical(self, "Entrada invalida", str(error))
+            self.records = []; self.project_input = None; self.loaded_input_path = None
+            QMessageBox.critical(self, "Entrada invalida", str(error))
 
     def _apply_auto_split(self):
         if not self.records:
@@ -636,6 +655,10 @@ class LutzScholzDialog(QDialog):
         elif "import" in method: self.etp_method.setCurrentIndex(1)
         method_r = str(self.project_input.config.get("metodo_r", "manual")).lower()
         self.r_mode.setCurrentIndex(1 if "component" in method_r else (2 if "capa" in method_r else 0))
+        if self.project_input.config.get("retencion_manual_mm") not in (None, "") and self.r_mode.currentIndex() == 0:
+            self.r_excel_status.setText(
+                f"R cargada desde Configuracion: {self.r_spin.value():.3f} mm/año."
+            )
         method_k = str(self.project_input.config.get("metodo_k", "manual")).lower()
         self.k_mode.setCurrentIndex(1 if "criter" in method_k else (2 if "a_dia" in method_k else 0))
         region = str(self.project_input.config.get("region_abastecimiento", "manual")).lower()
@@ -669,23 +692,93 @@ class LutzScholzDialog(QDialog):
         return imported
 
     def _load_supply_from_excel(self):
-        if self.project_input is None:
-            QMessageBox.warning(self, "Abastecimiento", "Cargue y valide primero el archivo Excel en la pestana Datos.")
+        if not self._ensure_selected_excel_loaded("Abastecimiento"):
             return
         imported = self._apply_workbook_retention()
         if imported != 12:
             QMessageBox.warning(self, "Abastecimiento", self.supply_status.text())
 
+    def _ensure_selected_excel_loaded(self, title):
+        path = Path(self.input_edit.text().strip())
+        resolved = str(path.resolve()) if path.is_file() else None
+        if (
+            self.project_input is not None
+            and path.suffix.lower() == ".xlsx"
+            and self.loaded_input_path == resolved
+        ):
+            return True
+        if not path.is_file() or path.suffix.lower() != ".xlsx":
+            QMessageBox.warning(
+                self, title,
+                "Seleccione primero un archivo XLSX en la pestaña Datos. "
+                "Si la ruta ya está visible, no necesita cambiar de pestaña: vuelva a pulsar este botón."
+            )
+            return False
+        self._load_input()
+        return (
+            self.project_input is not None
+            and bool(self.records)
+            and self.loaded_input_path == resolved
+        )
+
+    def _load_retention_from_excel(self):
+        if not self._ensure_selected_excel_loaded("Retención"):
+            return
+        config = self.project_input.config
+        configured_method = str(config.get("metodo_r", "manual")).lower()
+        if "component" in configured_method:
+            self.r_mode.setCurrentIndex(1)
+            if self._apply_workbook_components() is None:
+                QMessageBox.warning(
+                    self, "Retención",
+                    "El Excel indica Componentes_R, pero no contiene componentes válidos."
+                )
+            return
+
+        raw_value = config.get("retencion_manual_mm")
+        if raw_value not in (None, ""):
+            try:
+                value = float(raw_value)
+                if not 0 <= value <= 10_000:
+                    raise ValueError
+            except (TypeError, ValueError):
+                QMessageBox.warning(
+                    self, "Retención",
+                    "Retencion_Manual_mm debe ser un número entre 0 y 10000."
+                )
+                return
+            self.r_spin.setValue(value)
+            self.r_mode.setCurrentIndex(0)
+            self.r_tabs.setCurrentIndex(0)
+            self.r_excel_status.setText(
+                f"R cargada desde Configuracion: {value:.3f} mm/año."
+            )
+            return
+
+        if self.project_input.components:
+            self.r_mode.setCurrentIndex(1)
+            self._apply_workbook_components()
+            return
+        QMessageBox.warning(
+            self, "Retención",
+            "El Excel no contiene Retencion_Manual_mm ni filas válidas en Componentes_R."
+        )
+
     def _apply_workbook_components(self):
         rows = self.project_input.components if self.project_input else []
-        if not rows or self.r_mode.currentIndex() != 1: return
+        if not rows or self.r_mode.currentIndex() != 1: return None
         components = []
         for row in rows:
             active = str(row.get("activo", "si")).lower() not in ("no", "0", "false")
             components.append({"type": row.get("tipo", ""), "area_km2": row.get("area_km2", 0), "slope_fraction": row.get("pendiente_fraccion", None), "specific_depth_mm": row.get("lamina_manual_mm", None), "active": active})
         result = calculate_retention_components(self.area_spin.value(), components)
         self.r_spin.setValue(result["retention_mm"]); self.r_mode.setCurrentIndex(1)
+        self.r_tabs.setCurrentIndex(0)
         self.spatial_status.setPlainText(f"R desde Componentes_R: {result['retention_mm']:.4f} mm/año")
+        self.r_excel_status.setText(
+            f"R calculada desde Componentes_R: {result['retention_mm']:.4f} mm/año."
+        )
+        return result
 
     def _etp_records(self, strict=True):
         if self.etp_method.currentIndex() == 2:
@@ -805,6 +898,9 @@ class LutzScholzDialog(QDialog):
                 self.aquifer_slope.value() if self.manual_slope_check.isChecked() else None,
             )
             self.area_spin.setValue(result["area_basin_km2"]); self.r_spin.setValue(result["retention_mm"]); self.r_mode.setCurrentIndex(2)
+            self.r_excel_status.setText(
+                "La R activa proviene de capas QGIS. Pulse «Cargar R del Excel» para restaurar el valor del libro."
+            )
             lines = [f"Área de cuenca: {result['area_basin_km2']:.3f} km2", f"R calculada: {result['retention_mm']:.5f} mm/año", f"Volumen: {result['volume_total_mmc']:.5f} MMC"]
             lines += [f"{item['type']}: {item['area_km2']:.4f} km2; aporte {item['basin_contribution_mm']:.4f} mm" for item in result["components"]]
             lines.append(f"CRS de cuenca: {result.get('basin_crs', 'N/D')}")
@@ -1072,7 +1168,8 @@ class LutzScholzDialog(QDialog):
             self.summary.setPlainText(self._format_summary(result, self.last_outputs)); self.tabs.setCurrentIndex(7)
             QMessageBox.information(
                 self, "Modelo finalizado",
-                f"Cálculo, indicadores, gráficos e informe Word generados.\n\nCorrida: {run_folder.name}\n{run_folder}"
+                "Cálculo, indicadores, gráficos e informe Word generados.\n\n"
+                f"Identificador de modelación: {_display_modeling_id(run_folder.name)}\n{run_folder}"
             )
         except Exception as error: QMessageBox.critical(self, "No se pudo ejecutar", str(error))
         finally: QApplication.restoreOverrideCursor()
@@ -1085,10 +1182,10 @@ class LutzScholzDialog(QDialog):
     def _format_summary(self, result, outputs):
         metadata = result.get("run_metadata", {})
         lines = [f"MODELO LUTZ SCHOLZ v{PLUGIN_SERIES}", "="*42,
-                 f"Corrida: {metadata.get('run_id', 'N/D')}",
-                 f"Modo de calibracion: {metadata.get('calibration_mode', 'N/D')}",
-                 f"Division: {metadata.get('split_method', 'N/D')}",
-                 "Validacion: usa parametros calibrados y NO recalibra",
+                 f"Identificador de modelación: {_display_modeling_id(metadata.get('run_id'))}",
+                 f"Modalidad: {_display_mode(metadata.get('calibration_mode'))}",
+                 f"División temporal: {_display_split(metadata.get('split_method'))}",
+                 "Validación: utiliza los parámetros calibrados sin reajustarlos",
                  f"Área: {result['parameters']['area_km2']:.3f} km2", f"C: {result['parameters']['coef_escorrentia']:.5f}", f"R: {result['parameters']['retencion_mm']:.3f} mm/año", f"a: {result['parameters']['a_dia']:.6f} 1/día"]
         balance = result.get("balance_diagnostics") or {}
         if balance.get("annual_balance_modified"):

@@ -18,4 +18,4 @@ tracker=https://github.com/victoroalvites-cpu/lutz_scholz_qgis/issues
 license=GNU GPL v3 or later
 hasProcessingProvider=False
 server=False
-changelog=Primera edición pública: configuración de proyecto, división 60/40, calibración con balance físico estricto, validación independiente, diagnóstico gráfico e informe Word con terminología técnica depurada, parámetros iniciales/finales, límites de búsqueda y convención PBIAS explícita.
+changelog=Primera edición pública: configuración de proyecto, división 60/40, calibración con balance físico estricto, validación independiente, ficha e informe con terminología técnica depurada, carga reutilizable de R desde Excel, diagnóstico gráfico y convención PBIAS explícita.

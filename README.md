@@ -19,7 +19,7 @@ en una sola interfaz de QGIS.
 - calcula ETP por Hargreaves-Samani, retención espacial y patrones regionales;
 - obtiene, de forma opcional, precipitación o temperatura desde Earth Engine;
 - muestra diagnósticos mensual, anual, multimensual y de dispersión;
-- exporta CSV, JSON, gráficos PNG/SVG y un informe técnico Word por corrida.
+- exporta CSV, JSON, gráficos PNG/SVG y un informe técnico Word por modelación.
 
 ## Configuración del proyecto
 
@@ -37,7 +37,7 @@ Proyecto_Lutz/
 ```
 
 La carpeta de clima se propone al exportar la serie areal y la carpeta de
-resultados se usa como destino predeterminado de las corridas. No se eliminan
+resultados se usa como destino predeterminado de las modelaciones. No se eliminan
 ni sustituyen archivos existentes.
 
 ## Instalación
@@ -87,9 +87,16 @@ automática solo se consideran años con 12 caudales observados válidos. Los
 primeros años completos forman aproximadamente el 60 % de calibración y los
 restantes el 40 % de validación.
 
+En la pestaña **Retención**, el botón **Cargar R del Excel** permite restaurar
+la retención después de un cálculo con capas. Si `Metodo_R` indica `manual`,
+se recupera `Retencion_Manual_mm` de la hoja `Configuracion`; si indica
+componentes, R se recalcula con la hoja `Componentes_R`. El archivo puede estar
+ya cargado o simplemente seleccionado en la pestaña Datos.
+
 ## Resultados y trazabilidad
 
-Cada ejecución se guarda en una carpeta `corrida_AAAAMMDD_HHMMSS`. Incluye las
+Cada modelación se guarda internamente en una carpeta
+`corrida_AAAAMMDD_HHMMSS`. Incluye las
 series, métricas, parámetros, procedencia de datos, gráficos individuales y
 paneles en PNG/SVG, además de `Informe_Tecnico_Lutz_Scholz.docx`. La validación
 se informa por separado y nunca modifica los parámetros calibrados. El informe
