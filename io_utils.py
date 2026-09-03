@@ -212,6 +212,7 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
     parameters_path = trace_folder / "parametros_modelo.json"
     precipitation_path = data_folder / "estadisticas_precipitacion.csv"
     persistence_path = data_folder / "permanencia_caudales.csv"
+    transfer_path = data_folder / "transposicion_caudales.csv"
     manifest_path = trace_folder / "manifiesto_corrida.json"
 
     rows = list(result["rows"])
@@ -263,7 +264,7 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
             values = persistence.get(period)
             if not values:
                 continue
-            for origin in ("simulado", "observado"):
+            for origin in ("simulado", "observado", "transferido"):
                 summary = values.get(origin) or {}
                 writer.writerow((
                     period, "serie", origin, summary.get("n", 0), summary.get("mean_m3s"),
@@ -272,7 +273,7 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
                     values.get("method", ""),
                 ))
             for monthly in values.get("mensual", []):
-                for origin in ("simulado", "observado"):
+                for origin in ("simulado", "observado", "transferido"):
                     summary = monthly.get(origin) or {}
                     writer.writerow((
                         period, monthly.get("mes"), origin, summary.get("n", 0),
@@ -280,6 +281,21 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
                         summary.get("reference_15pct_mean_m3s"), summary.get("zero_percentage"),
                         values.get("method", ""),
                     ))
+
+    transfer = result.get("flow_transfer") or {}
+    if transfer.get("active"):
+        with transfer_path.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow((
+                "fecha", "precipitacion_objetivo_mm", "precipitacion_donante_mm",
+                "caudal_donante_m3s", "factor_transferencia", "caudal_transferido_m3s",
+            ))
+            for row in rows:
+                writer.writerow((
+                    row.get("fecha"), row.get("precipitacion_mm"),
+                    row.get("precipitacion_donante_mm"), row.get("caudal_donante_m3s"),
+                    row.get("factor_transferencia"), row.get("caudal_transferido_m3s"),
+                ))
 
     statistics = result.get("precipitation_statistics") or {}
     with precipitation_path.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -294,6 +310,8 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
     payload["run_metadata"] = result.get("run_metadata", {})
     payload["diagnostic_scales"] = result.get("diagnostics", {})
     payload["flow_persistence"] = persistence
+    payload["persistence_analysis"] = result.get("persistence_analysis", {})
+    payload["flow_transfer"] = transfer
     if result.get("automatic_calibration"):
         payload["automatic_calibration"] = result["automatic_calibration"]
     if result.get("c_estimation"):
@@ -316,10 +334,15 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
             "parameters": "trazabilidad/" + parameters_path.name,
         },
     }
+    if transfer.get("active"):
+        manifest["files"]["flow_transfer"] = "datos/" + transfer_path.name
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-    return {
+    outputs = {
         "series": str(series_path), "metrics": str(metrics_path),
         "precipitation_statistics": str(precipitation_path),
         "flow_persistence": str(persistence_path),
         "parameters": str(parameters_path), "manifest": str(manifest_path),
     }
+    if transfer.get("active"):
+        outputs["flow_transfer"] = str(transfer_path)
+    return outputs

@@ -21,6 +21,7 @@ from .core import (
     calibrate_parameters, calculate_retention_components, estimate_c_observed,
     estimate_c_southern_region, estimate_c_turc, regional_supply, run_model,
     select_k_by_criteria, summarize_etp, chronological_observed_split,
+    flow_persistence, transfer_hydrological_flows,
 )
 from .io_utils import read_project, write_results
 from .plotting import create_diagnostic_plots
@@ -107,7 +108,8 @@ class LutzScholzDialog(QDialog):
         self.tabs.addTab(self._k_tab(), "5. K")
         self.tabs.addTab(self._supply_tab(), "6. Abastecimiento")
         self.tabs.addTab(self._calibration_tab(), "7. Calibracion")
-        self.tabs.addTab(self._scroll(self._results_tab()), "8. Resultados")
+        self.tabs.addTab(self._flow_analysis_tab(), "8. Permanencia")
+        self.tabs.addTab(self._scroll(self._results_tab()), "9. Resultados")
         self.tabs.setUsesScrollButtons(True)
         self.tabs.setElideMode(Qt.ElideRight)
         self.tabs.setMinimumSize(0, 0)
@@ -391,6 +393,112 @@ class LutzScholzDialog(QDialog):
             "Modo manual activo: la corrida usara exactamente C, R, a y las 12 fracciones de abastecimiento visibles. "
             "Los indicadores se calcularan sin optimizar parametros."
         )
+
+    def _flow_analysis_tab(self):
+        content = QWidget(); layout = QVBoxLayout(content)
+        transfer = QGroupBox("Transposición hidrológica opcional")
+        grid = QGridLayout(transfer)
+        self.transfer_check = QCheckBox("Aplicar transferencia Qs = (As/Ac) × (Ps/Pc) × Qc")
+        self.transfer_check.setChecked(False)
+        self.donor_input_edit = QLineEdit()
+        self.donor_input_edit.setPlaceholderText("CSV o Excel de la cuenca donante")
+        browse = QPushButton("Examinar")
+        browse.clicked.connect(self._browse_donor_input)
+        self.donor_area_spin = self._spin(.001, 1_000_000, 1000.0, 3, 1)
+        self.transfer_method_combo = QComboBox()
+        self.transfer_method_combo.addItem("Factor anual de precipitación", "annual")
+        self.transfer_method_combo.addItem("Factores por mes climatológico", "monthly_climatology")
+        note = QLabel(
+            "El archivo donante debe contener Fecha, Precipitación y Q observado. La cuenca objetivo "
+            "es la serie cargada en Datos y su área es la indicada en Parámetros principales."
+        )
+        note.setWordWrap(True)
+        grid.addWidget(self.transfer_check, 0, 0, 1, 3)
+        grid.addWidget(QLabel("Serie donante"), 1, 0); grid.addWidget(self.donor_input_edit, 1, 1); grid.addWidget(browse, 1, 2)
+        grid.addWidget(QLabel("Área donante (km²)"), 2, 0); grid.addWidget(self.donor_area_spin, 2, 1)
+        grid.addWidget(QLabel("Ajuste de precipitación"), 3, 0); grid.addWidget(self.transfer_method_combo, 3, 1, 1, 2)
+        grid.addWidget(note, 4, 0, 1, 3)
+        layout.addWidget(transfer)
+
+        persistence = QGroupBox("Persistencia y referencia ecológica")
+        form = QFormLayout(persistence)
+        self.persistence_source_combo = QComboBox()
+        self.persistence_source_combo.addItem("Caudal simulado por Lutz Scholz", "simulado")
+        self.persistence_source_combo.addItem("Caudal observado de la serie objetivo", "observado")
+        self.persistence_source_combo.addItem("Caudal transferido", "transferido")
+        self.persistence_status = QLabel(
+            "La permanencia se calcula de forma independiente. No es necesario activar la transposición."
+        )
+        self.persistence_status.setWordWrap(True)
+        form.addRow("Serie para Q75, Q95 y referencia del 15 %", self.persistence_source_combo)
+        form.addRow("Criterio", self.persistence_status)
+        layout.addWidget(persistence)
+        warning = QLabel(
+            "Q75 y Q95 son estadísticas hidrológicas. La referencia del 15 % y el Q95 no constituyen "
+            "por sí solos un caudal ecológico aprobado por la ANA."
+        )
+        warning.setWordWrap(True); layout.addWidget(warning); layout.addStretch(1)
+        return self._scroll(content)
+
+    def _browse_donor_input(self):
+        initial = self.donor_input_edit.text().strip()
+        if not initial and self.project_folders:
+            initial = str(self.project_folders["input"])
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Seleccionar serie de la cuenca donante", initial,
+            "Datos (*.xlsx *.csv *.txt);;Todos (*.*)",
+        )
+        if path:
+            self.donor_input_edit.setText(path)
+
+    def _apply_flow_analysis(self, result):
+        selected_origin = self.persistence_source_combo.currentData() or "simulado"
+        if self.transfer_check.isChecked():
+            donor_path = self.donor_input_edit.text().strip()
+            if not donor_path:
+                raise LutzError("Seleccione el CSV o Excel de la cuenca donante.")
+            donor = read_project(donor_path)
+            rows, transfer = transfer_hydrological_flows(
+                result["rows"], donor.records, self.area_spin.value(),
+                self.donor_area_spin.value(), self.transfer_method_combo.currentData(),
+            )
+            transfer["donor_file"] = str(Path(donor_path).resolve())
+            result["rows"] = rows
+            result["flow_transfer"] = transfer
+        else:
+            result["flow_transfer"] = {"active": False}
+            if selected_origin == "transferido":
+                raise LutzError(
+                    "La fuente elegida es 'Caudal transferido', pero la transposición está desactivada."
+                )
+
+        field = {
+            "simulado": "caudal_simulado_m3s",
+            "observado": "caudal_observado_m3s",
+            "transferido": "caudal_transferido_m3s",
+        }[selected_origin]
+        if not any(row.get(field) is not None for row in result["rows"]):
+            raise LutzError("La serie seleccionada para el análisis de permanencia no contiene caudales.")
+
+        calibration = result["calibration_period"]
+        validation = result.get("validation_period")
+        persistence = {
+            "complete": flow_persistence(result["rows"], selected_origin),
+            "calibration": flow_persistence(
+                [row for row in result["rows"] if calibration[0] <= int(row["anio"]) <= calibration[1]],
+                selected_origin,
+            ),
+        }
+        if validation:
+            persistence["validation"] = flow_persistence(
+                [row for row in result["rows"] if validation[0] <= int(row["anio"]) <= validation[1]],
+                selected_origin,
+            )
+        result["flow_persistence"] = persistence
+        result["persistence_analysis"] = {
+            "selected_origin": selected_origin,
+            "transfer_required": selected_origin == "transferido",
+        }
 
     def _results_tab(self):
         content = QWidget(); layout = QVBoxLayout(content)
@@ -1079,6 +1187,8 @@ class LutzScholzDialog(QDialog):
             "etp_method": self.etp_method.currentText(),
             "supply_source": self.supply_source_title,
             "retention_source": self.r_mode.currentText(),
+            "persistence_source": self.persistence_source_combo.currentData(),
+            "flow_transfer_active": self.transfer_check.isChecked(),
             "spatial_layers": {
                 "basin": self.basin_combo.currentLayer().name() if spatial_retention and self.basin_combo.currentLayer() else None,
                 "snow_glacier": self.snow_combo.currentLayer().name() if spatial_retention and self.snow_combo.currentLayer() else None,
@@ -1138,6 +1248,7 @@ class LutzScholzDialog(QDialog):
                 result = run_model(records, parameters, retention, calibration_period, validation)
             if self.c_estimate_result:
                 result["c_estimation"] = dict(self.c_estimate_result)
+            self._apply_flow_analysis(result)
             run_folder = self._create_run_folder(output)
             result["run_metadata"] = self._run_metadata(records, calibration_period, validation, run_folder)
             self.last_outputs = write_results(result, str(run_folder))
@@ -1166,7 +1277,7 @@ class LutzScholzDialog(QDialog):
             self._set_result_period_options(bool(result.get("metrics_validation")))
             self._refresh_result_period()
             if self.add_table_check.isChecked(): self._add_results_table(self.last_outputs["series"])
-            self.summary.setPlainText(self._format_summary(result, self.last_outputs)); self.tabs.setCurrentIndex(7)
+            self.summary.setPlainText(self._format_summary(result, self.last_outputs)); self.tabs.setCurrentIndex(8)
             QMessageBox.information(
                 self, "Modelo finalizado",
                 "Cálculo, indicadores, gráficos e informe Word generados.\n\n"
@@ -1229,8 +1340,9 @@ class LutzScholzDialog(QDialog):
                         lines += [f"    {name}: {'N/D' if value is None else f'{value:.6f}'}" for name, value in values.items()]
         permanence = (result.get("flow_persistence") or {}).get("complete") or {}
         if permanence:
-            lines += ["", "PERMANENCIA DE CAUDALES"]
-            for origin, label in (("simulado", "Simulado"), ("observado", "Observado")):
+            selected = permanence.get("selected_origin", "simulado")
+            lines += ["", "PERMANENCIA DE CAUDALES", f"  Fuente seleccionada: {selected}"]
+            for origin, label in (("simulado", "Simulado"), ("observado", "Observado"), ("transferido", "Transferido")):
                 values = permanence.get(origin) or {}
                 if values.get("n"):
                     lines.append(

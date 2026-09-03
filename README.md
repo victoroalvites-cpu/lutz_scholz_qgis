@@ -21,8 +21,11 @@ en una sola interfaz de QGIS.
 - muestra diagnósticos mensual, anual, multimensual y de dispersión;
 - informa NSE, LogNSE, KGE, correlación, RMSE, MAD, PBIAS y el criterio de
   Schultz como diagnóstico complementario;
-- calcula curvas de permanencia, Q75 y Q95 para las series simulada y observada,
-  tanto para la serie completa como para calibración y validación;
+- permite transponer opcionalmente caudales desde una cuenca donante mediante
+  `Qs = (As/Ac) (Ps/Pc) Qc`, con factor anual o factores climatológicos mensuales;
+- calcula curvas de permanencia, Q75, Q95 y la referencia mensual del 15 % a
+  partir de la serie simulada, observada o transferida que el usuario seleccione,
+  sin obligar a realizar una transposición;
 - exporta CSV, JSON, gráficos PNG/SVG y un informe técnico Word por modelación.
 
 ## Configuración del proyecto
@@ -118,10 +121,16 @@ La convención de sesgo utilizada es
 subestimación global y uno positivo, sobreestimación. Las conclusiones separan
 el desempeño general, los caudales bajos y el comportamiento de caudales altos.
 
-El archivo `datos/permanencia_caudales.csv`, la pestaña **Permanencia** y el
-informe Word presentan Q75 y Q95 mediante posiciones de trazado de Weibull
-`P = m/(n+1)`, además de una referencia equivalente al 15 % del caudal medio
-mensual simulado. Q75 y Q95 son estadísticas hidrológicas de excedencia. La
+La pestaña **Permanencia** permite activar o dejar desactivada la transposición
+hidrológica. Si se activa, el archivo de la cuenca donante debe incluir fecha,
+precipitación y caudal observado, y el complemento registra áreas, factores y
+meses comunes en `datos/transposicion_caudales.csv`. La cuenca objetivo es la
+serie principal cargada en **Datos**.
+
+El archivo `datos/permanencia_caudales.csv`, la vista gráfica y el informe Word
+presentan Q75 y Q95 mediante posiciones de trazado de Weibull `P = m/(n+1)`,
+además de una referencia equivalente al 15 % del caudal medio mensual de la
+fuente seleccionada. Q75 y Q95 son estadísticas hidrológicas de excedencia. La
 referencia del 15 % se incluye como apoyo para el método hidrológico-hidráulico
 del Anexo I de la Resolución Jefatural N.° 267-2019-ANA; ninguno de estos valores
 constituye por sí solo un caudal ecológico aprobado. El método aplicable debe

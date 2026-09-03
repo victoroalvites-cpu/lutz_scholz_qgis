@@ -140,7 +140,7 @@ def _persistence_origin(rows, field):
     }
 
 
-def flow_persistence(rows):
+def flow_persistence(rows, selected_origin="simulado"):
     """Resume Q75, Q95 y la referencia mensual del 15 % para una serie.
 
     Q75 y Q95 son estadisticos de permanencia. El 15 % se conserva como una
@@ -150,26 +150,35 @@ def flow_persistence(rows):
     """
 
     rows = list(rows)
+    origin_fields = (
+        ("simulado", "caudal_simulado_m3s"),
+        ("observado", "caudal_observado_m3s"),
+        ("transferido", "caudal_transferido_m3s"),
+    )
+    if selected_origin not in {item[0] for item in origin_fields}:
+        raise ValueError("El origen seleccionado para permanencia no es valido.")
     monthly = []
     for month in range(1, 13):
         selected = [row for row in rows if int(row["mes"]) == month]
-        monthly.append({
-            "mes": month,
-            "simulado": _persistence_origin(selected, "caudal_simulado_m3s"),
-            "observado": _persistence_origin(selected, "caudal_observado_m3s"),
-        })
-    return {
+        item = {"mes": month}
+        for origin, field in origin_fields:
+            item[origin] = _persistence_origin(selected, field)
+        monthly.append(item)
+    result = {
         "method": "Weibull P=m/(n+1), interpolacion lineal",
+        "selected_origin": selected_origin,
         "regulation_reference": "Resolucion Jefatural N. 267-2019-ANA, Anexo I",
         "regulatory_note": (
             "Q75 y Q95 son estadisticos hidrologicos de permanencia. La columna del 15 % "
             "es una referencia hidrologica mensual del Anexo I y no equivale por si sola "
             "a un caudal ecologico aprobado por la ANA."
         ),
-        "simulado": _persistence_origin(rows, "caudal_simulado_m3s"),
-        "observado": _persistence_origin(rows, "caudal_observado_m3s"),
         "mensual": monthly,
     }
+    for origin, field in origin_fields:
+        result[origin] = _persistence_origin(rows, field)
+    result["seleccionado"] = result[selected_origin]
+    return result
 
 
 def diagnostic_scales(rows, matlab_compatible=True):

@@ -57,7 +57,8 @@ class PlottingTests(unittest.TestCase):
         self.assertIn("División temporal: Cronológica 60/40", summary)
         self.assertNotIn("Corrida:", summary)
         self.assertIn("Curva de permanencia", persistence)
-        self.assertIn("Q75 sim=", persistence)
+        self.assertIn("Fuente=simulado", persistence)
+        self.assertIn("Q75=", persistence)
         self.assertIn("permanencia_calibracion", paths)
         self.assertIn("permanencia_validacion", paths)
 

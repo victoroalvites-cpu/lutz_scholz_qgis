@@ -19,7 +19,7 @@ def _svg_start(title, width=1000, height=560):
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
         '<rect width="100%" height="100%" fill="#ffffff"/>',
-        '<style>text{font-family:Arial,sans-serif;fill:#1f2937}.title{font-size:21px;font-weight:bold}.subtitle{font-size:12px}.label{font-size:13px}.tick{font-size:10px}.metric{font-size:11px}.axis{stroke:#64748b}.grid{stroke:#e5e7eb}.sim{fill:none;stroke:#d97706;stroke-width:2}.obs{fill:none;stroke:#1d4ed8;stroke-width:1.7}.reg{fill:none;stroke:#dc2626;stroke-width:1.5}</style>',
+        '<style>text{font-family:Arial,sans-serif;fill:#1f2937}.title{font-size:21px;font-weight:bold}.subtitle{font-size:12px}.label{font-size:13px}.tick{font-size:10px}.metric{font-size:11px}.axis{stroke:#64748b}.grid{stroke:#e5e7eb}.sim{fill:none;stroke:#d97706;stroke-width:2}.obs{fill:none;stroke:#1d4ed8;stroke-width:1.7}.trans{fill:none;stroke:#059669;stroke-width:1.8}.reg{fill:none;stroke:#dc2626;stroke-width:1.5}</style>',
         f'<text x="{width/2:.0f}" y="31" text-anchor="middle" class="title">{html.escape(title)}</text>',
     ]
 
@@ -212,7 +212,11 @@ def _persistence_svg(rows, path, period_label="Serie completa", persistence=None
         [float(row["caudal_simulado_m3s"]) for row in rows
          if row.get("caudal_simulado_m3s") is not None], reverse=True
     )
-    maximum = _maximum(observed, simulated)
+    transferred = sorted(
+        [float(row["caudal_transferido_m3s"]) for row in rows
+         if row.get("caudal_transferido_m3s") is not None], reverse=True
+    )
+    maximum = _maximum(observed, simulated, transferred)
     parts = _svg_start(f"Curva de permanencia de caudales - {period_label}")
     plot = _frame(parts, x_label="Probabilidad de excedencia (%)")
     _y_labels(parts, plot, maximum)
@@ -223,7 +227,7 @@ def _persistence_svg(rows, path, period_label="Serie completa", persistence=None
     for probability in (75, 95):
         x = px + pw * probability / 100.0
         parts.append(f'<line x1="{x:.2f}" y1="{py}" x2="{x:.2f}" y2="{py+ph}" stroke="#94a3b8" stroke-dasharray="5 5"/>')
-    for values, css in ((observed, "obs"), (simulated, "sim")):
+    for values, css in ((observed, "obs"), (simulated, "sim"), (transferred, "trans")):
         if not values:
             continue
         points = []
@@ -233,14 +237,16 @@ def _persistence_svg(rows, path, period_label="Serie completa", persistence=None
             y = py + ph - ph * value / maximum
             points.append(f"{x:.2f},{y:.2f}")
         parts.append(f'<polyline points="{" ".join(points)}" class="{css}"/>')
-    sim = persistence.get("simulado") or {}
-    obs = persistence.get("observado") or {}
+    selected = persistence.get("selected_origin", "simulado")
+    selected_values = persistence.get(selected) or {}
     parts.append(
         f'<text x="78" y="52" class="metric">'
-        f'Q75 sim={_flow_text(sim, "Q75_m3s")} · Q75 obs={_flow_text(obs, "Q75_m3s")} · '
-        f'Q95 sim={_flow_text(sim, "Q95_m3s")} · Q95 obs={_flow_text(obs, "Q95_m3s")} m3/s</text>'
+        f'Fuente={html.escape(selected)} · Q75={_flow_text(selected_values, "Q75_m3s")} · '
+        f'Q95={_flow_text(selected_values, "Q95_m3s")} m3/s</text>'
     )
     _legend(parts)
+    if transferred:
+        parts.append('<line x1="430" y1="52" x2="458" y2="52" class="trans"/><text x="465" y="57" class="label">Transferido</text>')
     return _write(path, parts)
 
 

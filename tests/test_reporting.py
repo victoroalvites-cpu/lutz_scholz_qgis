@@ -30,7 +30,8 @@ class ReportingTests(unittest.TestCase):
                 document_xml = archive.read("word/document.xml").decode("utf-8")
         self.assertIn("Permanencia de caudales", document_xml)
         self.assertIn("Weibull", document_xml)
-        self.assertIn("15 % Q medio sim", document_xml)
+        self.assertIn("15 % Q medio", document_xml)
+        self.assertIn("caudal simulado por Lutz Scholz", document_xml)
         self.assertIn("no equivale por sí solo a un caudal ecológico aprobado", document_xml)
         self.assertIn("8. Conclusiones del desempeño", document_xml)
 

@@ -25,6 +25,7 @@ from .diagnostics import (
 )
 from .statistics import precipitation_statistics
 from .runoff import estimate_c_observed, estimate_c_southern_region, estimate_c_turc
+from .transfer import transfer_hydrological_flows
 
 __all__ = [
     "LutzError",
@@ -55,4 +56,5 @@ __all__ = [
     "estimate_c_southern_region",
     "estimate_c_observed",
     "precipitation_statistics",
+    "transfer_hydrological_flows",
 ]

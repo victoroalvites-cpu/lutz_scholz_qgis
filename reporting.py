@@ -301,7 +301,7 @@ def _complementary_metric_rows(result):
 def _persistence_summary_rows(result):
     values = (result.get("flow_persistence") or {}).get("complete") or {}
     rows = [["Origen", "n", "Q medio", "Q75", "Q95", "Ceros (%)"]]
-    for key, label in (("simulado", "Simulado"), ("observado", "Observado")):
+    for key, label in (("simulado", "Simulado"), ("observado", "Observado"), ("transferido", "Transferido")):
         current = values.get(key) or {}
         if current.get("n"):
             rows.append([
@@ -314,16 +314,17 @@ def _persistence_summary_rows(result):
 
 def _persistence_monthly_rows(result):
     values = (result.get("flow_persistence") or {}).get("complete") or {}
-    rows = [["Mes", "Q75 sim", "Q75 obs", "Q95 sim", "Q95 obs", "15 % Q medio sim"]]
+    selected_origin = values.get("selected_origin", "simulado")
+    labels = {"simulado": "Simulado", "observado": "Observado", "transferido": "Transferido"}
+    rows = [["Mes", "Origen", "Q medio", "Q75", "Q95", "15 % Q medio"]]
     for item in values.get("mensual", []):
-        simulated = item.get("simulado") or {}
-        observed = item.get("observado") or {}
+        selected = item.get(selected_origin) or {}
         month = int(item.get("mes", 0))
         label = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")[month - 1]
         rows.append([
-            label, _safe(simulated.get("Q75_m3s")), _safe(observed.get("Q75_m3s")),
-            _safe(simulated.get("Q95_m3s")), _safe(observed.get("Q95_m3s")),
-            _safe(simulated.get("reference_15pct_mean_m3s")),
+            label, labels.get(selected_origin, selected_origin), _safe(selected.get("mean_m3s")),
+            _safe(selected.get("Q75_m3s")), _safe(selected.get("Q95_m3s")),
+            _safe(selected.get("reference_15pct_mean_m3s")),
         ])
     return rows
 
@@ -578,14 +579,36 @@ def create_word_report(result, outputs, png_paths, output_path):
         ))
 
     persistence = (result.get("flow_persistence") or {}).get("complete") or {}
+    transfer = result.get("flow_transfer") or {}
     if image_entries or persistence:
         body.append(_page_break())
+    if transfer.get("active"):
+        body.append(_paragraph("7. Transposición hidrológica", style="Heading1"))
+        method_label = {
+            "annual": "factor anual de precipitación",
+            "monthly_climatology": "factores por mes climatológico",
+        }.get(transfer.get("method"), _display_label(transfer.get("method")))
+        body.append(_paragraph(
+            "La serie transferida se estimó con Qs = (As/Ac) × (Ps/Pc) × Qc, utilizando "
+            f"{method_label}. La cuenca donante tiene {_safe(transfer.get('donor_area_km2'))} km² "
+            f"y la cuenca objetivo {_safe(transfer.get('target_area_km2'))} km²; se transfirieron "
+            f"{_safe(transfer.get('transferred_months'), 0)} meses comunes."
+        ))
+        body.append(_paragraph(str(transfer.get("assumption", "")), italic=True, color="4B5563"))
+        body.append(_page_break())
     if persistence:
-        body.append(_paragraph("7. Permanencia de caudales y referencia ecológica", style="Heading1"))
+        persistence_number = 8 if transfer.get("active") else 7
+        selected_origin = persistence.get("selected_origin", "simulado")
+        selected_label = {
+            "simulado": "caudal simulado por Lutz Scholz",
+            "observado": "caudal observado",
+            "transferido": "caudal transferido",
+        }.get(selected_origin, selected_origin)
+        body.append(_paragraph(f"{persistence_number}. Permanencia de caudales y referencia ecológica", style="Heading1"))
         body.append(_paragraph(
             "Los caudales Q75 y Q95 corresponden a probabilidades de excedencia de 75 % y 95 %, "
             "respectivamente. Se calcularon con posiciones de trazado de Weibull P = m/(n+1) e "
-            "interpolación lineal sobre los caudales medios mensuales."
+            f"interpolación lineal. La fuente seleccionada para el análisis fue: {selected_label}."
         ))
         body.append(_table(_persistence_summary_rows(result), [1800, 700, 1700, 1700, 1700, 1760], font_size=9))
         body.append(_paragraph("Resultados mensuales de la serie completa", style="Heading2"))
@@ -595,7 +618,7 @@ def create_word_report(result, outputs, png_paths, output_path):
             font_size=8,
         ))
         body.append(_paragraph(
-            "La columna «15 % Q medio sim» es una referencia hidrológica mensual basada en el Anexo I "
+            "La columna «15 % Q medio» es una referencia hidrológica mensual basada en el Anexo I "
             "de la Resolución Jefatural N.° 267-2019-ANA. Q75, Q95 y ese porcentaje son resultados "
             "técnicos de apoyo; ninguno equivale por sí solo a un caudal ecológico aprobado. La "
             "metodología aplicable y su aprobación dependen de la clasificación del proyecto, del tramo "
@@ -603,7 +626,7 @@ def create_word_report(result, outputs, png_paths, output_path):
             italic=True, color="4B5563",
         ))
         body.append(_page_break())
-    conclusion_number = 8 if persistence else 7
+    conclusion_number = 7 + (1 if persistence else 0) + (1 if transfer.get("active") else 0)
     body.append(_paragraph(f"{conclusion_number}. Conclusiones del desempeño", style="Heading1"))
     for paragraph in _conclusion(result):
         body.append(_paragraph(paragraph))

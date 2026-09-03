@@ -32,6 +32,7 @@ from lutz_scholz_qgis.core import (
     chronological_observed_split,
     exceedance_flow,
     flow_persistence,
+    transfer_hydrological_flows,
 )
 
 DEFAULT_POSITIONS = (0, 0, 0, 1, 2, 3, 4, 5, 6, 0, 0, 0)
@@ -157,6 +158,36 @@ class LutzCoreTests(unittest.TestCase):
         self.assertAlmostEqual(
             result["simulado"]["reference_15pct_mean_m3s"], 0.15 * 6.5
         )
+
+    def test_persistence_can_select_observed_without_transposition(self):
+        rows = [
+            {"mes": month, "caudal_simulado_m3s": float(month),
+             "caudal_observado_m3s": float(month + 10)}
+            for month in range(1, 13)
+        ]
+        result = flow_persistence(rows, "observado")
+        self.assertEqual(result["selected_origin"], "observado")
+        self.assertEqual(result["seleccionado"], result["observado"])
+        self.assertEqual(result["transferido"]["n"], 0)
+
+    def test_ana_hydrological_transfer_uses_area_and_annual_precipitation(self):
+        target_rows = []
+        donor = []
+        for month in range(1, 13):
+            target_rows.append({
+                "fecha": date(2000, month, 1).isoformat(), "anio": 2000, "mes": month,
+                "precipitacion_mm": 50.0, "caudal_simulado_m3s": 1.0,
+                "caudal_observado_m3s": None,
+            })
+            donor.append(MonthlyRecord(date(2000, month, 1), 100.0, 10.0))
+        rows, metadata = transfer_hydrological_flows(
+            target_rows, donor, target_area_km2=2000, donor_area_km2=1000,
+            method="annual",
+        )
+        self.assertAlmostEqual(metadata["area_factor"], 2.0)
+        self.assertAlmostEqual(metadata["precipitation_factors"]["annual"], 0.5)
+        self.assertAlmostEqual(rows[0]["factor_transferencia"], 1.0)
+        self.assertAlmostEqual(rows[0]["caudal_transferido_m3s"], 10.0)
 
     def test_complete_model_returns_monthly_rows_and_balances(self):
         pattern = [160, 190, 170, 80, 30, 10, 5, 5, 15, 40, 80, 130]
