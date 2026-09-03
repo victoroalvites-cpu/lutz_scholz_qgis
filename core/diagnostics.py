@@ -1,4 +1,4 @@
-"""Diagnosticos hidrologicos por escala para resultados Lutz Scholz."""
+"""Diagnosticos hidrologicos por escala para resultados Lutz Sholtz."""
 
 from __future__ import annotations
 

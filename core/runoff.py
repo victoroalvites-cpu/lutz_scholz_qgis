@@ -1,4 +1,4 @@
-"""Estimacion explicable del coeficiente de escorrentia del modelo Lutz Scholz."""
+"""Estimacion explicable del coeficiente de escorrentia del modelo Lutz Sholtz."""
 
 from __future__ import annotations
 

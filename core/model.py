@@ -1,4 +1,4 @@
-"""Nucleo numerico puro Python del metodo clasico de Lutz Scholz.
+"""Nucleo numerico puro Python del metodo clasico de Lutz Sholtz.
 
 El modulo no importa QGIS ni librerias externas. Esto permite comprobar las
 ecuaciones con ``unittest`` y reutilizarlas en otras interfaces.

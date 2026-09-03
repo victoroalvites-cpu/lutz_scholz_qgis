@@ -18,7 +18,7 @@ def _finite(value):
 
 def transfer_simulated_flows(source_rows, source_area_km2, target_area_km2,
                              target_annual_precipitation_mm):
-    """Transfiere la simulacion final de Lutz Scholz a la cuenca objetivo.
+    """Transfiere la simulacion final de Lutz Sholtz a la cuenca objetivo.
 
     ``source_rows`` contiene ``Qc`` y ``Pc`` de la cuenca modelada. El usuario
     solo proporciona ``As`` y la precipitación media anual ``Ps`` de la cuenca
