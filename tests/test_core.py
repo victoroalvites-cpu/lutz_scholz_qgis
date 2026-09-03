@@ -33,6 +33,7 @@ from lutz_scholz_qgis.core import (
     exceedance_flow,
     flow_persistence,
     transfer_hydrological_flows,
+    transfer_simulated_flows,
 )
 
 DEFAULT_POSITIONS = (0, 0, 0, 1, 2, 3, 4, 5, 6, 0, 0, 0)
@@ -108,6 +109,32 @@ class LutzCoreTests(unittest.TestCase):
                 (100.0, 200.0), (.01, .03), (.05, .30), 4, "NSE", False,
             )
 
+    def test_automatic_calibration_never_replaces_a_better_initial_solution(self):
+        pattern = [160, 190, 170, 80, 30, 10, 5, 5, 15, 40, 80, 130]
+        climate = [
+            MonthlyRecord(date(year, month, 1), float(precipitation))
+            for year in range(2000, 2004)
+            for month, precipitation in enumerate(pattern, start=1)
+        ]
+        retention = RetentionConfig(DEFAULT_POSITIONS, DEFAULT_SUPPLY)
+        base = ModelParameters(950.54, .18792, 30.801, a_dia=.003681)
+        truth = run_model(climate, base, retention, (2000, 2003))
+        observed = [
+            MonthlyRecord(record.fecha, record.precipitacion_mm, row["caudal_simulado_m3s"])
+            for record, row in zip(climate, truth["rows"])
+        ]
+
+        best = calibrate_parameters(
+            observed, base, retention, (2000, 2003), None,
+            (0.0, 100.0), (.001, .06), (.10, .30), 4, "NSE", True,
+        )
+
+        self.assertAlmostEqual(best["score"], 1.0)
+        self.assertAlmostEqual(best["coefficient"], base.coef_escorrentia)
+        self.assertAlmostEqual(best["retention_mm"], base.retencion_mm)
+        self.assertAlmostEqual(best["a_day"], base.a_dia)
+        self.assertIs(best["result"], best["initial_result"])
+
     def test_chronological_split_uses_complete_observed_years_at_60_40(self):
         records = []
         for year in range(1990, 2026):
@@ -155,9 +182,27 @@ class LutzCoreTests(unittest.TestCase):
         result = flow_persistence(rows)
         self.assertIn("Weibull", result["method"])
         self.assertEqual(len(result["mensual"]), 12)
+        self.assertEqual(result["probabilities_percent"], [10, 25, 50, 75, 90, 95])
+        self.assertIn("Q10_m3s", result["simulado"])
+        self.assertIn("Q90_m3s", result["simulado"])
+        self.assertIn("coefficient_variation", result["simulado"])
         self.assertAlmostEqual(
             result["simulado"]["reference_15pct_mean_m3s"], 0.15 * 6.5
         )
+
+    def test_monthly_persistence_groups_each_calendar_month(self):
+        rows = []
+        for year, january in ((2000, 10.0), (2001, 8.0), (2002, 6.0), (2003, 4.0), (2004, 2.0)):
+            rows.append({
+                "anio": year, "mes": 1, "caudal_simulado_m3s": january,
+                "caudal_observado_m3s": january,
+            })
+        result = flow_persistence(rows)
+        january = result["mensual"][0]["simulado"]
+        self.assertEqual(january["n"], 5)
+        self.assertAlmostEqual(january["mean_m3s"], 6.0)
+        self.assertAlmostEqual(january["Q75_m3s"], 3.0)
+        self.assertEqual(result["mensual"][1]["simulado"]["n"], 0)
 
     def test_persistence_can_select_observed_without_transposition(self):
         rows = [
@@ -188,6 +233,26 @@ class LutzCoreTests(unittest.TestCase):
         self.assertAlmostEqual(metadata["precipitation_factors"]["annual"], 0.5)
         self.assertAlmostEqual(rows[0]["factor_transferencia"], 1.0)
         self.assertAlmostEqual(rows[0]["caudal_transferido_m3s"], 10.0)
+
+    def test_transfer_uses_final_simulation_as_source_automatically(self):
+        source_rows = []
+        for month in range(1, 13):
+            source_rows.append({
+                "fecha": date(2000, month, 1).isoformat(), "anio": 2000, "mes": month,
+                "precipitacion_mm": 100.0, "caudal_simulado_m3s": 10.0,
+                "caudal_observado_m3s": 12.0,
+            })
+        rows, metadata = transfer_simulated_flows(
+            source_rows, source_area_km2=1000, target_area_km2=200,
+            target_annual_precipitation_mm=600.0,
+        )
+        self.assertEqual(metadata["source"], "caudal_simulado_final_lutz_scholz")
+        self.assertAlmostEqual(metadata["area_factor"], 0.2)
+        self.assertAlmostEqual(metadata["precipitation_factors"]["annual"], 0.5)
+        self.assertAlmostEqual(metadata["source_annual_precipitation_mm"], 1200.0)
+        self.assertAlmostEqual(rows[0]["caudal_donante_m3s"], 10.0)
+        self.assertAlmostEqual(rows[0]["caudal_transferido_m3s"], 1.0)
+        self.assertAlmostEqual(rows[0]["precipitacion_objetivo_mm"], 600.0)
 
     def test_complete_model_returns_monthly_rows_and_balances(self):
         pattern = [160, 190, 170, 80, 30, 10, 5, 5, 15, 40, 80, 130]

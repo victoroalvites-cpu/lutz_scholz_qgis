@@ -28,8 +28,10 @@ class ReportingTests(unittest.TestCase):
             create_word_report(result, {}, {}, str(report))
             with ZipFile(report) as archive:
                 document_xml = archive.read("word/document.xml").decode("utf-8")
-        self.assertIn("Permanencia de caudales", document_xml)
+        self.assertIn("Régimen multimensual, persistencia", document_xml)
         self.assertIn("Weibull", document_xml)
+        self.assertIn("Q75", document_xml)
+        self.assertIn("Persist. 75 %", document_xml)
         self.assertIn("15 % Q medio", document_xml)
         self.assertIn("caudal simulado por Lutz Scholz", document_xml)
         self.assertIn("no equivale por sí solo a un caudal ecológico aprobado", document_xml)
@@ -77,7 +79,7 @@ class ReportingTests(unittest.TestCase):
                 "retention_limit_mm": 13.5,
             },
             "run_metadata": {
-                "run_id": "corrida_20260902_162103",
+                "run_id": "modelacion_20260902_162103",
                 "scenario": "escenario_base",
                 "created_at": "2026-09-02T16:21:03-05:00",
                 "calibration_mode": "automatica",

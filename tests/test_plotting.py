@@ -6,6 +6,33 @@ from lutz_scholz_qgis.plotting import create_diagnostic_plots
 
 
 class PlottingTests(unittest.TestCase):
+    def test_transfer_is_visible_in_monthly_and_regime_plots(self):
+        rows = []
+        for month in range(1, 13):
+            rows.append({
+                "fecha": f"2000-{month:02d}-01", "anio": 2000, "mes": month,
+                "caudal_simulado_m3s": float(month),
+                "caudal_observado_m3s": float(month) * .9,
+                "caudal_transferido_m3s": float(month) * .25,
+            })
+        result = {
+            "rows": rows,
+            "parameters": {
+                "area_km2": 1000, "coef_escorrentia": .2,
+                "retencion_mm": 10, "a_dia": .02,
+            },
+            "calibration_period": (2000, 2000), "validation_period": None,
+            "run_metadata": {},
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            paths = create_diagnostic_plots(result, folder)
+            series = Path(paths["serie_mensual"]).read_text(encoding="utf-8")
+            regime = Path(paths["regimen_multimensual"]).read_text(encoding="utf-8")
+        self.assertIn("simulado y transferido", series)
+        self.assertIn('class="trans"', series)
+        self.assertIn("Transferido", regime)
+        self.assertIn('class="trans"', regime)
+
     def test_monthly_series_contains_visible_date_ticks(self):
         rows = []
         for year in (2000, 2001):
@@ -23,7 +50,7 @@ class PlottingTests(unittest.TestCase):
             "calibration_period": (2000, 2000),
             "validation_period": (2001, 2001),
             "run_metadata": {
-                "run_id": "corrida_20260902_200624",
+                "run_id": "modelacion_20260902_200624",
                 "calibration_mode": "automatica",
                 "split_method": "cronologico_60_40",
             },
@@ -58,7 +85,7 @@ class PlottingTests(unittest.TestCase):
         self.assertNotIn("Corrida:", summary)
         self.assertIn("Curva de permanencia", persistence)
         self.assertIn("Fuente=simulado", persistence)
-        self.assertIn("Q75=", persistence)
+        self.assertIn("Q75 (persistencia 75 %)=", persistence)
         self.assertIn("permanencia_calibracion", paths)
         self.assertIn("permanencia_validacion", paths)
 
