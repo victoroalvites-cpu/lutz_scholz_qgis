@@ -285,6 +285,36 @@ def _metric_rows(result):
     return rows
 
 
+def _persistence_summary_rows(result):
+    values = (result.get("flow_persistence") or {}).get("complete") or {}
+    rows = [["Origen", "n", "Q medio", "Q75", "Q95", "Ceros (%)"]]
+    for key, label in (("simulado", "Simulado"), ("observado", "Observado")):
+        current = values.get(key) or {}
+        if current.get("n"):
+            rows.append([
+                label, _safe(current.get("n"), 0), _safe(current.get("mean_m3s")),
+                _safe(current.get("Q75_m3s")), _safe(current.get("Q95_m3s")),
+                _safe(current.get("zero_percentage")),
+            ])
+    return rows
+
+
+def _persistence_monthly_rows(result):
+    values = (result.get("flow_persistence") or {}).get("complete") or {}
+    rows = [["Mes", "Q75 sim", "Q75 obs", "Q95 sim", "Q95 obs", "15 % Q medio sim"]]
+    for item in values.get("mensual", []):
+        simulated = item.get("simulado") or {}
+        observed = item.get("observado") or {}
+        month = int(item.get("mes", 0))
+        label = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")[month - 1]
+        rows.append([
+            label, _safe(simulated.get("Q75_m3s")), _safe(observed.get("Q75_m3s")),
+            _safe(simulated.get("Q95_m3s")), _safe(observed.get("Q95_m3s")),
+            _safe(simulated.get("reference_15pct_mean_m3s")),
+        ])
+    return rows
+
+
 def _conclusion(result):
     diagnostics = result.get("diagnostics") or {}
     cal = (diagnostics.get("calibration") or {}).get("monthly") or {}
@@ -306,9 +336,11 @@ def _conclusion(result):
         if val.get("KGE") is not None and cal.get("KGE") is not None:
             delta_kge = val["KGE"] - cal["KGE"]
             direction_kge = "aumentó" if delta_kge >= 0 else "disminuyó"
+            validation_pbias = val.get("PBIAS_porcentaje")
             transfer = (
                 "conserva un desempeño general estable fuera del periodo calibrado"
                 if val["NSE"] >= 0.5 and val["KGE"] >= 0.5
+                and (validation_pbias is None or abs(validation_pbias) <= 15.0)
                 else "requiere cautela al transferirse fuera del periodo calibrado"
             )
             paragraphs.append(
@@ -336,6 +368,17 @@ def _conclusion(result):
             paragraphs.append(
                 f"En caudales altos, el sesgo fue {_safe(high_bias)} %; existe tendencia a {tendency} "
                 "los eventos mayores y no debe asumirse la misma precisión para todos los picos."
+            )
+    persistence = (result.get("flow_persistence") or {}).get("complete") or {}
+    simulated = persistence.get("simulado") or {}
+    observed = persistence.get("observado") or {}
+    if observed.get("Q95_m3s") not in (None, 0) and simulated.get("Q95_m3s") is not None:
+        ratio = simulated["Q95_m3s"] / observed["Q95_m3s"]
+        if ratio < 0.8:
+            paragraphs.append(
+                f"En estiaje, el Q95 simulado ({_safe(simulated.get('Q95_m3s'))} m³/s) es inferior "
+                f"al observado ({_safe(observed.get('Q95_m3s'))} m³/s). La estimación de permanencias "
+                "bajas debe revisarse antes de emplearse en decisiones de disponibilidad o caudal ecológico."
             )
     if not paragraphs:
         paragraphs.append("La modelación finalizó correctamente y conserva sus resultados para revisión técnica.")
@@ -491,7 +534,7 @@ def create_word_report(result, outputs, png_paths, output_path):
     image_order = [
         ("panel_diagnostico", "4. Diagnóstico de la serie completa", "Serie completa"),
         ("panel_diagnostico_calibracion", "5. Diagnóstico de calibración", "Calibración"),
-        ("panel_diagnostico_validacion", "6. Diagnóstico de validación", "Validación independiente"),
+        ("panel_diagnostico_validacion", "6. Diagnóstico de validación", "Validación"),
     ]
     image_entries = []
     for key, heading, caption in image_order:
@@ -510,15 +553,40 @@ def create_word_report(result, outputs, png_paths, output_path):
             width_emu=5532120, height_emu=3688080,
         ))
 
-    if image_entries:
+    persistence = (result.get("flow_persistence") or {}).get("complete") or {}
+    if image_entries or persistence:
         body.append(_page_break())
-    body.append(_paragraph("7. Conclusiones del desempeño", style="Heading1"))
+    if persistence:
+        body.append(_paragraph("7. Permanencia de caudales y referencia ecológica", style="Heading1"))
+        body.append(_paragraph(
+            "Los caudales Q75 y Q95 corresponden a probabilidades de excedencia de 75 % y 95 %, "
+            "respectivamente. Se calcularon con posiciones de trazado de Weibull P = m/(n+1) e "
+            "interpolación lineal sobre los caudales medios mensuales."
+        ))
+        body.append(_table(_persistence_summary_rows(result), [1800, 700, 1700, 1700, 1700, 1760], font_size=9))
+        body.append(_paragraph("Resultados mensuales de la serie completa", style="Heading2"))
+        body.append(_table(
+            _persistence_monthly_rows(result),
+            [800, 1450, 1450, 1450, 1450, 2760],
+            font_size=8,
+        ))
+        body.append(_paragraph(
+            "La columna «15 % Q medio sim» es una referencia hidrológica mensual basada en el Anexo I "
+            "de la Resolución Jefatural N.° 267-2019-ANA. Q75, Q95 y ese porcentaje son resultados "
+            "técnicos de apoyo; ninguno equivale por sí solo a un caudal ecológico aprobado. La "
+            "metodología aplicable y su aprobación dependen de la clasificación del proyecto, del tramo "
+            "de río y de la Autoridad Administrativa del Agua competente.",
+            italic=True, color="4B5563",
+        ))
+        body.append(_page_break())
+    conclusion_number = 8 if persistence else 7
+    body.append(_paragraph(f"{conclusion_number}. Conclusiones del desempeño", style="Heading1"))
     for paragraph in _conclusion(result):
         body.append(_paragraph(paragraph))
     body.append(_paragraph("Archivos de respaldo", style="Heading2"))
     body.append(_paragraph(
-        "La carpeta de la modelación contiene las series mensuales, los indicadores, los parámetros, "
-        "los gráficos en formatos SVG y PNG, y el manifiesto de trazabilidad."
+        "La carpeta de la modelación contiene las series mensuales, el análisis de permanencia, los "
+        "indicadores, los parámetros, los gráficos en formatos SVG y PNG, y el manifiesto de trazabilidad."
     ))
     if balance.get("negative_months"):
         body.append(_page_break())

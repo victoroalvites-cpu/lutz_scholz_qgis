@@ -30,6 +30,8 @@ from lutz_scholz_qgis.core import (
     select_climate_variables,
     summarize_etp,
     chronological_observed_split,
+    exceedance_flow,
+    flow_persistence,
 )
 
 DEFAULT_POSITIONS = (0, 0, 0, 1, 2, 3, 4, 5, 6, 0, 0, 0)
@@ -140,6 +142,21 @@ class LutzCoreTests(unittest.TestCase):
         self.assertAlmostEqual(result["PBIAS_porcentaje"], 0.0)
         self.assertAlmostEqual(result["PBIAS_altos_porcentaje"], 0.0)
 
+    def test_weibull_exceedance_and_persistence_are_traceable(self):
+        self.assertAlmostEqual(exceedance_flow([10, 8, 6, 4, 2], 0.75), 3.0)
+        self.assertAlmostEqual(exceedance_flow([10, 8, 6, 4, 2], 0.95), 2.0)
+        rows = [
+            {"mes": month, "caudal_simulado_m3s": float(month),
+             "caudal_observado_m3s": float(month + 1)}
+            for month in range(1, 13)
+        ]
+        result = flow_persistence(rows)
+        self.assertIn("Weibull", result["method"])
+        self.assertEqual(len(result["mensual"]), 12)
+        self.assertAlmostEqual(
+            result["simulado"]["reference_15pct_mean_m3s"], 0.15 * 6.5
+        )
+
     def test_complete_model_returns_monthly_rows_and_balances(self):
         pattern = [160, 190, 170, 80, 30, 10, 5, 5, 15, 40, 80, 130]
         records = []
@@ -157,6 +174,8 @@ class LutzCoreTests(unittest.TestCase):
         self.assertAlmostEqual(result["retention"]["error_balance_mm"], 0.0, places=8)
         self.assertIsNotNone(result["metrics_calibration"])
         self.assertIsNotNone(result["metrics_validation"])
+        self.assertIn("complete", result["flow_persistence"])
+        self.assertIsNotNone(result["flow_persistence"]["complete"]["simulado"]["Q75_m3s"])
 
     def test_hargreaves_adds_monthly_etp(self):
         record = MonthlyRecord(date(2001, 1, 1), 100, 2.0, 7, 13, 20)

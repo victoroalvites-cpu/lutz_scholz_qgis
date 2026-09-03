@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
-from .core.diagnostics import diagnostic_scales
+from .core.diagnostics import diagnostic_scales, flow_persistence
 from .reporting import _display_mode, _display_modeling_id, _display_split
 
 
@@ -93,6 +93,11 @@ def _metric_text(metrics):
         values.append(f"{key}={'N/D' if value is None else f'{value:.3f}'}")
     values.extend((f"PBIAS={metrics.get('PBIAS_porcentaje', float('nan')):.1f}%", f"n={metrics.get('n', 0)}"))
     return " · ".join(values)
+
+
+def _flow_text(summary, key):
+    value = (summary or {}).get(key)
+    return "N/D" if value is None else f"{float(value):.3f}"
 
 
 def _date_labels(parts, plot, rows, maximum_labels=7):
@@ -195,6 +200,50 @@ def _scatter_svg(rows, path, period_label="Serie completa", diagnostics=None):
     return _write(path, parts)
 
 
+def _persistence_svg(rows, path, period_label="Serie completa", persistence=None):
+    """Curva empirica de permanencia con referencias Q75 y Q95."""
+
+    persistence = persistence or flow_persistence(rows)
+    observed = sorted(
+        [float(row["caudal_observado_m3s"]) for row in rows
+         if row.get("caudal_observado_m3s") is not None], reverse=True
+    )
+    simulated = sorted(
+        [float(row["caudal_simulado_m3s"]) for row in rows
+         if row.get("caudal_simulado_m3s") is not None], reverse=True
+    )
+    maximum = _maximum(observed, simulated)
+    parts = _svg_start(f"Curva de permanencia de caudales - {period_label}")
+    plot = _frame(parts, x_label="Probabilidad de excedencia (%)")
+    _y_labels(parts, plot, maximum)
+    px, py, pw, ph = plot
+    for probability in (0, 25, 50, 75, 95, 100):
+        x = px + pw * probability / 100.0
+        parts.append(f'<text x="{x:.1f}" y="{py+ph+18}" text-anchor="middle" class="tick">{probability}</text>')
+    for probability in (75, 95):
+        x = px + pw * probability / 100.0
+        parts.append(f'<line x1="{x:.2f}" y1="{py}" x2="{x:.2f}" y2="{py+ph}" stroke="#94a3b8" stroke-dasharray="5 5"/>')
+    for values, css in ((observed, "obs"), (simulated, "sim")):
+        if not values:
+            continue
+        points = []
+        for index, value in enumerate(values, start=1):
+            probability = 100.0 * index / (len(values) + 1)
+            x = px + pw * probability / 100.0
+            y = py + ph - ph * value / maximum
+            points.append(f"{x:.2f},{y:.2f}")
+        parts.append(f'<polyline points="{" ".join(points)}" class="{css}"/>')
+    sim = persistence.get("simulado") or {}
+    obs = persistence.get("observado") or {}
+    parts.append(
+        f'<text x="78" y="52" class="metric">'
+        f'Q75 sim={_flow_text(sim, "Q75_m3s")} · Q75 obs={_flow_text(obs, "Q75_m3s")} · '
+        f'Q95 sim={_flow_text(sim, "Q95_m3s")} · Q95 obs={_flow_text(obs, "Q95_m3s")} m3/s</text>'
+    )
+    _legend(parts)
+    return _write(path, parts)
+
+
 def _panel_diagnostic_svg(rows, path, period_label, diagnostics=None):
     """Panel compacto 2x2 inspirado en el diagnostico exportado por R."""
     diagnostics = diagnostics or diagnostic_scales(rows)
@@ -274,11 +323,15 @@ def create_diagnostic_plots(result: Dict[str, object], output_folder: str) -> Di
     }
     periods = {"calibration": result.get("calibration_period"), "validation": result.get("validation_period")}
     complete = diagnostics["complete"]
+    persistence = result.get("flow_persistence") or {"complete": flow_persistence(rows)}
     output = {
         "serie_mensual": _series_svg(rows, folder / "grafico_serie_mensual.svg", "Serie completa", periods, complete),
         "caudal_anual": _annual_svg(rows, folder / "grafico_caudal_anual.svg", "Serie completa", complete),
         "regimen_multimensual": _monthly_svg(rows, folder / "grafico_regimen_multimensual.svg", "Serie completa", complete),
         "dispersion": _scatter_svg(rows, folder / "grafico_dispersion.svg", "Serie completa", complete),
+        "permanencia": _persistence_svg(
+            rows, folder / "grafico_permanencia.svg", "Serie completa", persistence.get("complete")
+        ),
         "panel_diagnostico": _panel_diagnostic_svg(rows, folder / "panel_diagnostico.svg", "Serie completa", complete),
         "resumen": _summary_svg(result, folder / "grafico_resumen.svg"),
     }
@@ -293,11 +346,15 @@ def create_diagnostic_plots(result: Dict[str, object], output_folder: str) -> Di
         if not selected:
             continue
         current = diagnostics[diagnostic_key]
+        current_persistence = persistence.get(diagnostic_key) or flow_persistence(selected)
         output.update({
             f"serie_mensual_{period_key}": _series_svg(selected, folder / f"grafico_serie_mensual_{period_key}.svg", label, diagnostics=current),
             f"caudal_anual_{period_key}": _annual_svg(selected, folder / f"grafico_caudal_anual_{period_key}.svg", label, current),
             f"regimen_multimensual_{period_key}": _monthly_svg(selected, folder / f"grafico_regimen_multimensual_{period_key}.svg", label, current),
             f"dispersion_{period_key}": _scatter_svg(selected, folder / f"grafico_dispersion_{period_key}.svg", label, current),
+            f"permanencia_{period_key}": _persistence_svg(
+                selected, folder / f"grafico_permanencia_{period_key}.svg", label, current_persistence
+            ),
             f"panel_diagnostico_{period_key}": _panel_diagnostic_svg(selected, folder / f"panel_diagnostico_{period_key}.svg", label, current),
         })
     return output

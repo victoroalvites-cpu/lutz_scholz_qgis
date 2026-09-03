@@ -500,7 +500,7 @@ def run_model(
 
     from .statistics import precipitation_statistics
 
-    from .diagnostics import diagnostic_scales
+    from .diagnostics import diagnostic_scales, flow_persistence
 
     diagnostics = {
         "complete": diagnostic_scales(rows, parameters.compatible_matlab),
@@ -513,6 +513,17 @@ def run_model(
         diagnostics["validation"] = diagnostic_scales(
             [row for row in rows if validation_years[0] <= row["anio"] <= validation_years[1]],
             parameters.compatible_matlab,
+        )
+
+    persistence = {
+        "complete": flow_persistence(rows),
+        "calibration": flow_persistence(
+            [row for row in rows if cal_start <= row["anio"] <= cal_end]
+        ),
+    }
+    if validation_years:
+        persistence["validation"] = flow_persistence(
+            [row for row in rows if validation_years[0] <= row["anio"] <= validation_years[1]]
         )
 
     return {
@@ -538,6 +549,7 @@ def run_model(
         "metrics_calibration": period_metrics(calibration_years),
         "metrics_validation": period_metrics(validation_years),
         "diagnostics": diagnostics,
+        "flow_persistence": persistence,
         "rows": rows,
         "precipitation_statistics": precipitation_statistics(records),
     }

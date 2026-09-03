@@ -27,10 +27,13 @@ class InputTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             outputs = write_results(result, folder)
             metrics_text = Path(outputs["metrics"]).read_text(encoding="utf-8-sig")
+            persistence_text = Path(outputs["flow_persistence"]).read_text(encoding="utf-8-sig")
             manifest_text = Path(outputs["manifest"]).read_text(encoding="utf-8")
         self.assertIn("periodo,escala,indicador,valor", metrics_text)
         self.assertIn("complete,monthly,NSE,0.8", metrics_text)
         self.assertIn('"validation_recalibrates": false', manifest_text)
+        self.assertIn("Q75_m3s,Q95_m3s", persistence_text)
+        self.assertIn('"flow_persistence": "datos/permanencia_caudales.csv"', manifest_text)
 
     def test_example_csv_is_complete(self):
         source = Path(__file__).parents[1] / "examples" / "serie_mensual_ejemplo.csv"

@@ -4,9 +4,36 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from lutz_scholz_qgis.reporting import create_word_report
+from lutz_scholz_qgis.core import flow_persistence
 
 
 class ReportingTests(unittest.TestCase):
+    def test_report_includes_persistence_and_regulatory_caveat(self):
+        rows = [
+            {"mes": month, "caudal_simulado_m3s": float(month),
+             "caudal_observado_m3s": float(month + 1)}
+            for month in range(1, 13)
+        ]
+        result = {
+            "version": "0.1.0",
+            "parameters": {"area_km2": 1, "coef_escorrentia": .2, "retencion_mm": 1,
+                           "a_dia": .02, "negative_balance_mode": "strict"},
+            "calibration_period": (2000, 2000), "validation_period": None,
+            "diagnostics": {}, "balance_diagnostics": {},
+            "flow_persistence": {"complete": flow_persistence(rows)},
+            "run_metadata": {"run_id": "qa_permanencia"},
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            report = Path(folder) / "informe.docx"
+            create_word_report(result, {}, {}, str(report))
+            with ZipFile(report) as archive:
+                document_xml = archive.read("word/document.xml").decode("utf-8")
+        self.assertIn("Permanencia de caudales", document_xml)
+        self.assertIn("Weibull", document_xml)
+        self.assertIn("15 % Q medio sim", document_xml)
+        self.assertIn("no equivale por sí solo a un caudal ecológico aprobado", document_xml)
+        self.assertIn("8. Conclusiones del desempeño", document_xml)
+
     def test_strict_automatic_report_omits_balance_warning_and_appendix(self):
         result = {
             "version": "0.1.0",
@@ -100,7 +127,7 @@ class ReportingTests(unittest.TestCase):
             "validation_period": (2012, 2025),
             "diagnostics": {
                 "calibration": {"monthly": {"n": 264, "NSE": 0.682, "LogNSE": 0.560, "KGE": 0.668, "PBIAS_porcentaje": -2.374}},
-                "validation": {"monthly": {"n": 168, "NSE": 0.625, "LogNSE": 0.379, "KGE": 0.616, "PBIAS_porcentaje": -1.168, "PBIAS_altos_porcentaje": 14.0}},
+                "validation": {"monthly": {"n": 168, "NSE": 0.625, "LogNSE": 0.379, "KGE": 0.616, "PBIAS_porcentaje": -25.0, "PBIAS_altos_porcentaje": 14.0}},
             },
             "run_metadata": {"run_id": "qa_conclusiones"},
         }
@@ -111,6 +138,7 @@ class ReportingTests(unittest.TestCase):
                 document_xml = archive.read("word/document.xml").decode("utf-8")
             self.assertIn("NSE = 0.625", document_xml)
             self.assertIn("KGE mensual de validación", document_xml)
+            self.assertIn("requiere cautela al transferirse", document_xml)
             self.assertIn("ajuste de caudales bajos es más débil", document_xml)
             self.assertIn("subestimación global", document_xml)
             self.assertIn("tendencia a sobreestimar", document_xml)

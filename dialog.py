@@ -408,7 +408,7 @@ class LutzScholzDialog(QDialog):
         layout.addLayout(period_row)
         self.result_tabs = QTabWidget(); self.summary = QPlainTextEdit(); self.summary.setReadOnly(True); self.result_tabs.addTab(self.summary, "Resumen")
         self.svg_widgets = {}
-        for key, label in (("panel_diagnostico", "Diagnóstico integral"), ("serie_mensual", "Serie"), ("caudal_anual", "Anual"), ("regimen_multimensual", "Régimen"), ("dispersion", "Dispersión"), ("resumen", "Ficha")):
+        for key, label in (("panel_diagnostico", "Diagnóstico integral"), ("serie_mensual", "Serie"), ("caudal_anual", "Anual"), ("regimen_multimensual", "Régimen"), ("dispersion", "Dispersión"), ("permanencia", "Permanencia"), ("resumen", "Ficha")):
             widget = QSvgWidget(); widget.setMinimumSize(700, 430); self.svg_widgets[key] = widget; self.result_tabs.addTab(widget, label)
         layout.addWidget(self.result_tabs, 1)
         open_folder = QPushButton("Abrir carpeta de resultados"); open_folder.clicked.connect(self._open_output); layout.addWidget(open_folder)
@@ -439,7 +439,7 @@ class LutzScholzDialog(QDialog):
             return
         period = self.result_period_combo.currentData() or "completo"
         suffix = "" if period == "completo" else f"_{period}"
-        for logical_key in ("panel_diagnostico", "serie_mensual", "caudal_anual", "regimen_multimensual", "dispersion"):
+        for logical_key in ("panel_diagnostico", "serie_mensual", "caudal_anual", "regimen_multimensual", "dispersion", "permanencia"):
             path = self.result_plot_paths.get(logical_key + suffix)
             if path:
                 self.svg_widgets[logical_key].load(path)
@@ -1062,6 +1062,7 @@ class LutzScholzDialog(QDialog):
         temperatures = [record.temp_media_c for record in records if record.temp_media_c is not None]
         precipitation = [record.precipitacion_mm for record in records if record.precipitacion_mm is not None]
         automatic_split = self.split_combo.currentData() == "auto_60_40" and self.period_split_info
+        spatial_retention = self.r_mode.currentIndex() == 2
         return {
             "run_id": run_folder.name,
             "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -1079,11 +1080,11 @@ class LutzScholzDialog(QDialog):
             "supply_source": self.supply_source_title,
             "retention_source": self.r_mode.currentText(),
             "spatial_layers": {
-                "basin": self.basin_combo.currentLayer().name() if self.basin_combo.currentLayer() else None,
-                "snow_glacier": self.snow_combo.currentLayer().name() if self.snow_combo.currentLayer() else None,
-                "lagoons_wetlands": self.lagoon_combo.currentLayer().name() if self.lagoon_combo.currentLayer() else None,
-                "aquifers": self.aquifer_combo.currentLayer().name() if self.aquifer_combo.currentLayer() else None,
-                "dem": self.dem_combo.currentLayer().name() if self.dem_combo.currentLayer() else None,
+                "basin": self.basin_combo.currentLayer().name() if spatial_retention and self.basin_combo.currentLayer() else None,
+                "snow_glacier": self.snow_combo.currentLayer().name() if spatial_retention and self.snow_combo.currentLayer() else None,
+                "lagoons_wetlands": self.lagoon_combo.currentLayer().name() if spatial_retention and self.lagoon_combo.currentLayer() else None,
+                "aquifers": self.aquifer_combo.currentLayer().name() if spatial_retention and self.aquifer_combo.currentLayer() else None,
+                "dem": self.dem_combo.currentLayer().name() if spatial_retention and self.dem_combo.currentLayer() else None,
             },
             "climate_provenance": self.climate_provenance,
             "series_fingerprint": {
@@ -1226,6 +1227,17 @@ class LutzScholzDialog(QDialog):
                     if values:
                         lines.append(f"  Escala {scale} (Q observado vs Q simulado):")
                         lines += [f"    {name}: {'N/D' if value is None else f'{value:.6f}'}" for name, value in values.items()]
+        permanence = (result.get("flow_persistence") or {}).get("complete") or {}
+        if permanence:
+            lines += ["", "PERMANENCIA DE CAUDALES"]
+            for origin, label in (("simulado", "Simulado"), ("observado", "Observado")):
+                values = permanence.get(origin) or {}
+                if values.get("n"):
+                    lines.append(
+                        f"  {label}: Q75={values.get('Q75_m3s', 0):.3f} m3/s; "
+                        f"Q95={values.get('Q95_m3s', 0):.3f} m3/s"
+                    )
+            lines.append("  Q75/Q95 son estadísticas hidrológicas; no equivalen por sí solas a un caudal ecológico aprobado.")
         lines += ["", "ARCHIVOS"] + [f"  {name}: {path}" for name, path in outputs.items()]
         return "\n".join(lines)
 

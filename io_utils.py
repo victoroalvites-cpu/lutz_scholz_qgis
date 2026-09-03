@@ -211,6 +211,7 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
     metrics_path = data_folder / "metricas.csv"
     parameters_path = trace_folder / "parametros_modelo.json"
     precipitation_path = data_folder / "estadisticas_precipitacion.csv"
+    persistence_path = data_folder / "permanencia_caudales.csv"
     manifest_path = trace_folder / "manifiesto_corrida.json"
 
     rows = list(result["rows"])
@@ -239,6 +240,47 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
                     for name, value in values.items():
                         writer.writerow((period, f"calendar_month_{int(month):02d}", name, "" if value is None else value))
 
+    persistence = result.get("flow_persistence")
+    if not persistence:
+        from .core.diagnostics import flow_persistence
+
+        persistence = {"complete": flow_persistence(rows)}
+        for key, period in (("calibration", result.get("calibration_period")),
+                            ("validation", result.get("validation_period"))):
+            if period:
+                persistence[key] = flow_persistence(
+                    [row for row in rows if period[0] <= int(row["anio"]) <= period[1]]
+                )
+        result["flow_persistence"] = persistence
+
+    with persistence_path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow((
+            "periodo", "mes", "origen", "n", "caudal_medio_m3s", "Q75_m3s", "Q95_m3s",
+            "referencia_15pct_media_m3s", "ceros_porcentaje", "metodo",
+        ))
+        for period in ("complete", "calibration", "validation"):
+            values = persistence.get(period)
+            if not values:
+                continue
+            for origin in ("simulado", "observado"):
+                summary = values.get(origin) or {}
+                writer.writerow((
+                    period, "serie", origin, summary.get("n", 0), summary.get("mean_m3s"),
+                    summary.get("Q75_m3s"), summary.get("Q95_m3s"),
+                    summary.get("reference_15pct_mean_m3s"), summary.get("zero_percentage"),
+                    values.get("method", ""),
+                ))
+            for monthly in values.get("mensual", []):
+                for origin in ("simulado", "observado"):
+                    summary = monthly.get(origin) or {}
+                    writer.writerow((
+                        period, monthly.get("mes"), origin, summary.get("n", 0),
+                        summary.get("mean_m3s"), summary.get("Q75_m3s"), summary.get("Q95_m3s"),
+                        summary.get("reference_15pct_mean_m3s"), summary.get("zero_percentage"),
+                        values.get("method", ""),
+                    ))
+
     statistics = result.get("precipitation_statistics") or {}
     with precipitation_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
@@ -251,6 +293,7 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
     payload["balance_diagnostics"] = result.get("balance_diagnostics", {})
     payload["run_metadata"] = result.get("run_metadata", {})
     payload["diagnostic_scales"] = result.get("diagnostics", {})
+    payload["flow_persistence"] = persistence
     if result.get("automatic_calibration"):
         payload["automatic_calibration"] = result["automatic_calibration"]
     if result.get("c_estimation"):
@@ -269,6 +312,7 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
             "monthly_results": "datos/" + series_path.name,
             "metrics": "datos/" + metrics_path.name,
             "precipitation_statistics": "datos/" + precipitation_path.name,
+            "flow_persistence": "datos/" + persistence_path.name,
             "parameters": "trazabilidad/" + parameters_path.name,
         },
     }
@@ -276,5 +320,6 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
     return {
         "series": str(series_path), "metrics": str(metrics_path),
         "precipitation_statistics": str(precipitation_path),
+        "flow_persistence": str(persistence_path),
         "parameters": str(parameters_path), "manifest": str(manifest_path),
     }

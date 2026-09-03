@@ -19,6 +19,8 @@ en una sola interfaz de QGIS.
 - calcula ETP por Hargreaves-Samani, retención espacial y patrones regionales;
 - obtiene, de forma opcional, precipitación o temperatura desde Earth Engine;
 - muestra diagnósticos mensual, anual, multimensual y de dispersión;
+- calcula curvas de permanencia, Q75 y Q95 para las series simulada y observada,
+  tanto para la serie completa como para calibración y validación;
 - exporta CSV, JSON, gráficos PNG/SVG y un informe técnico Word por modelación.
 
 ## Configuración del proyecto
@@ -113,6 +115,16 @@ La convención de sesgo utilizada es
 `PBIAS = 100 * suma(Qsim - Qobs) / suma(Qobs)`: un valor negativo representa
 subestimación global y uno positivo, sobreestimación. Las conclusiones separan
 el desempeño general, los caudales bajos y el comportamiento de caudales altos.
+
+El archivo `datos/permanencia_caudales.csv`, la pestaña **Permanencia** y el
+informe Word presentan Q75 y Q95 mediante posiciones de trazado de Weibull
+`P = m/(n+1)`, además de una referencia equivalente al 15 % del caudal medio
+mensual simulado. Q75 y Q95 son estadísticas hidrológicas de excedencia. La
+referencia del 15 % se incluye como apoyo para el método hidrológico-hidráulico
+del Anexo I de la Resolución Jefatural N.° 267-2019-ANA; ninguno de estos valores
+constituye por sí solo un caudal ecológico aprobado. El método aplicable debe
+definirse según la categoría del proyecto y coordinarse o aprobarse con la
+Autoridad Administrativa del Agua competente.
 
 El recorte controlado se conserva únicamente como alternativa manual
 exploratoria. Cuando se utiliza, el informe principal presenta una nota breve

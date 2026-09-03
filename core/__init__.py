@@ -15,7 +15,14 @@ from .climate_adjustment import (
 )
 from .retention import calculate_retention_components
 from .selection import chronological_observed_split, regional_supply, select_k_by_criteria
-from .diagnostics import annual_series, diagnostic_scales, regime_series, regression_summary
+from .diagnostics import (
+    annual_series,
+    diagnostic_scales,
+    exceedance_flow,
+    flow_persistence,
+    regime_series,
+    regression_summary,
+)
 from .statistics import precipitation_statistics
 from .runoff import estimate_c_observed, estimate_c_southern_region, estimate_c_turc
 
@@ -40,6 +47,8 @@ __all__ = [
     "regime_series",
     "regression_summary",
     "diagnostic_scales",
+    "exceedance_flow",
+    "flow_persistence",
     "calibrate_retention_and_a",
     "calibrate_parameters",
     "estimate_c_turc",

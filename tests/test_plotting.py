@@ -37,6 +37,7 @@ class PlottingTests(unittest.TestCase):
             annual = Path(paths["caudal_anual"]).read_text(encoding="utf-8")
             scatter = Path(paths["dispersion"]).read_text(encoding="utf-8")
             summary = Path(paths["resumen"]).read_text(encoding="utf-8")
+            persistence = Path(paths["permanencia"]).read_text(encoding="utf-8")
         self.assertIn("2000-01", svg)
         self.assertIn("2001-12", svg)
         self.assertGreaterEqual(svg.count('class="tick"'), 7)
@@ -55,6 +56,10 @@ class PlottingTests(unittest.TestCase):
         self.assertIn("Modalidad: Calibración automática", summary)
         self.assertIn("División temporal: Cronológica 60/40", summary)
         self.assertNotIn("Corrida:", summary)
+        self.assertIn("Curva de permanencia", persistence)
+        self.assertIn("Q75 sim=", persistence)
+        self.assertIn("permanencia_calibracion", paths)
+        self.assertIn("permanencia_validacion", paths)
 
 
 if __name__ == "__main__":
