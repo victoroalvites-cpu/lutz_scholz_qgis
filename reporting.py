@@ -300,7 +300,7 @@ def _complementary_metric_rows(result):
 
 def _persistence_summary_rows(result):
     values = (result.get("flow_persistence") or {}).get("complete") or {}
-    rows = [["Origen", "n", "Q medio", "Q75", "Q95", "Ceros (%)"]]
+    rows = [["Origen", "n", "Q medio", "Q75 (persist. 75 %)", "Q95 (persist. 95 %)", "Ceros (%)"]]
     for key, label in (("simulado", "Simulado"), ("observado", "Observado"), ("transferido", "Transferido")):
         current = values.get(key) or {}
         if current.get("n"):
@@ -312,18 +312,38 @@ def _persistence_summary_rows(result):
     return rows
 
 
-def _persistence_monthly_rows(result):
+def _monthly_regime_rows(result):
     values = (result.get("flow_persistence") or {}).get("complete") or {}
     selected_origin = values.get("selected_origin", "simulado")
-    labels = {"simulado": "Simulado", "observado": "Observado", "transferido": "Transferido"}
-    rows = [["Mes", "Origen", "Q medio", "Q75", "Q95", "15 % Q medio"]]
+    rows = [["Mes", "n", "Q medio", "Desv. estándar", "CV", "Q máximo", "Q mínimo"]]
     for item in values.get("mensual", []):
         selected = item.get(selected_origin) or {}
         month = int(item.get("mes", 0))
         label = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")[month - 1]
         rows.append([
-            label, labels.get(selected_origin, selected_origin), _safe(selected.get("mean_m3s")),
-            _safe(selected.get("Q75_m3s")), _safe(selected.get("Q95_m3s")),
+            label, _safe(selected.get("n"), 0), _safe(selected.get("mean_m3s")),
+            _safe(selected.get("standard_deviation_m3s")),
+            _safe(selected.get("coefficient_variation")),
+            _safe(selected.get("maximum_m3s")), _safe(selected.get("minimum_m3s")),
+        ])
+    return rows
+
+
+def _persistence_monthly_rows(result):
+    values = (result.get("flow_persistence") or {}).get("complete") or {}
+    selected_origin = values.get("selected_origin", "simulado")
+    rows = [[
+        "Mes", "Q10", "Q25", "Q50", "Q75\nPersist. 75 %", "Q90",
+        "Q95\nPersist. 95 %", "15 % Q medio",
+    ]]
+    for item in values.get("mensual", []):
+        selected = item.get(selected_origin) or {}
+        month = int(item.get("mes", 0))
+        label = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")[month - 1]
+        rows.append([
+            label, _safe(selected.get("Q10_m3s")), _safe(selected.get("Q25_m3s")),
+            _safe(selected.get("Q50_m3s")), _safe(selected.get("Q75_m3s")),
+            _safe(selected.get("Q90_m3s")), _safe(selected.get("Q95_m3s")),
             _safe(selected.get("reference_15pct_mean_m3s")),
         ])
     return rows
@@ -586,13 +606,18 @@ def create_word_report(result, outputs, png_paths, output_path):
         body.append(_paragraph("7. Transposición hidrológica", style="Heading1"))
         method_label = {
             "annual": "factor anual de precipitación",
+            "annual_mean_precipitation": "relación de precipitaciones medias anuales",
             "monthly_climatology": "factores por mes climatológico",
         }.get(transfer.get("method"), _display_label(transfer.get("method")))
+        source_area = transfer.get("source_area_km2", transfer.get("donor_area_km2"))
         body.append(_paragraph(
-            "La serie transferida se estimó con Qs = (As/Ac) × (Ps/Pc) × Qc, utilizando "
-            f"{method_label}. La cuenca donante tiene {_safe(transfer.get('donor_area_km2'))} km² "
-            f"y la cuenca objetivo {_safe(transfer.get('target_area_km2'))} km²; se transfirieron "
-            f"{_safe(transfer.get('transferred_months'), 0)} meses comunes."
+            "La serie Qc corresponde al caudal simulado final de Lutz Scholz. La serie objetivo "
+            "se estimó con Qs = (As/Ac) × (Ps/Pc) × Qc, utilizando "
+            f"{method_label}. La cuenca modelada tiene {_safe(source_area)} km² "
+            f"y Pc = {_safe(transfer.get('source_annual_precipitation_mm'))} mm/año; "
+            f"la cuenca objetivo tiene {_safe(transfer.get('target_area_km2'))} km² "
+            f"y Ps = {_safe(transfer.get('target_annual_precipitation_mm'))} mm/año. "
+            f"Se transfirieron {_safe(transfer.get('transferred_months'), 0)} caudales mensuales."
         ))
         body.append(_paragraph(str(transfer.get("assumption", "")), italic=True, color="4B5563"))
         body.append(_page_break())
@@ -604,17 +629,24 @@ def create_word_report(result, outputs, png_paths, output_path):
             "observado": "caudal observado",
             "transferido": "caudal transferido",
         }.get(selected_origin, selected_origin)
-        body.append(_paragraph(f"{persistence_number}. Permanencia de caudales y referencia ecológica", style="Heading1"))
+        body.append(_paragraph(f"{persistence_number}. Régimen multimensual, persistencia y referencia ecológica", style="Heading1"))
         body.append(_paragraph(
-            "Los caudales Q75 y Q95 corresponden a probabilidades de excedencia de 75 % y 95 %, "
-            "respectivamente. Se calcularon con posiciones de trazado de Weibull P = m/(n+1) e "
-            f"interpolación lineal. La fuente seleccionada para el análisis fue: {selected_label}."
+            "Los caudales se agruparon por mes calendario. Para cada mes se calcularon el régimen "
+            "multimensual y los caudales Q10, Q25, Q50, Q75, Q90 y Q95 con posiciones de trazado "
+            "de Weibull P = m/(n+1) e interpolación lineal. Q75 es el caudal igualado o excedido "
+            f"el 75 % del tiempo. La fuente seleccionada para el análisis fue: {selected_label}."
         ))
         body.append(_table(_persistence_summary_rows(result), [1800, 700, 1700, 1700, 1700, 1760], font_size=9))
-        body.append(_paragraph("Resultados mensuales de la serie completa", style="Heading2"))
+        body.append(_paragraph("Régimen multimensual de la serie completa (m³/s)", style="Heading2"))
+        body.append(_table(
+            _monthly_regime_rows(result),
+            [700, 650, 1450, 1600, 1000, 1500, 1500],
+            font_size=8,
+        ))
+        body.append(_paragraph("Caudales de persistencia por mes calendario (m³/s)", style="Heading2"))
         body.append(_table(
             _persistence_monthly_rows(result),
-            [800, 1450, 1450, 1450, 1450, 2760],
+            [650, 1050, 1050, 1050, 1500, 1050, 1500, 1900],
             font_size=8,
         ))
         body.append(_paragraph(
@@ -728,7 +760,7 @@ def create_word_report(result, outputs, png_paths, output_path):
 def finalize_manifest(manifest_path, outputs, plot_paths, png_paths, report_path):
     path = Path(manifest_path)
     payload = json.loads(path.read_text(encoding="utf-8"))
-    # Todas las rutas del manifiesto son relativas a la carpeta de corrida,
+    # Todas las rutas del manifiesto son relativas a la carpeta de modelacion,
     # aunque el propio manifiesto viva dentro de ``trazabilidad``.
     base = path.parent.parent
 

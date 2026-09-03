@@ -1,7 +1,7 @@
 # Lutz Scholz para QGIS
 
 Complemento para la simulación hidrológica mensual mediante el método de
-Lutz Scholz. La edición pública `0.1.0` integra preparación de datos,
+Lutz Scholz. La edición pública `0.2.0` integra preparación de datos,
 calibración, validación independiente, diagnóstico gráfico y reporte técnico
 en una sola interfaz de QGIS.
 
@@ -21,9 +21,11 @@ en una sola interfaz de QGIS.
 - muestra diagnósticos mensual, anual, multimensual y de dispersión;
 - informa NSE, LogNSE, KGE, correlación, RMSE, MAD, PBIAS y el criterio de
   Schultz como diagnóstico complementario;
-- permite transponer opcionalmente caudales desde una cuenca donante mediante
-  `Qs = (As/Ac) (Ps/Pc) Qc`, con factor anual o factores climatológicos mensuales;
-- calcula curvas de permanencia, Q75, Q95 y la referencia mensual del 15 % a
+- permite transponer opcionalmente el caudal simulado final de Lutz Scholz
+  mediante `Qs = (As/Ac) (Ps/Pc) Qc`; el usuario solo proporciona el área y la
+  precipitación mensual de la cuenca objetivo;
+- calcula el régimen multimensual y las persistencias mensuales Q10, Q25, Q50,
+  Q75, Q90 y Q95, además de la referencia mensual del 15 % a
   partir de la serie simulada, observada o transferida que el usuario seleccione,
   sin obligar a realizar una transposición;
 - exporta CSV, JSON, gráficos PNG/SVG y un informe técnico Word por modelación.
@@ -49,7 +51,7 @@ ni sustituyen archivos existentes.
 
 ## Instalación
 
-1. Descargue `Lutz_Scholz_QGIS_v0.1.0.zip`.
+1. Descargue `Lutz_Scholz_QGIS_v0.2.0.zip`.
 2. En QGIS 3.40 o posterior abra **Complementos > Administrar e instalar
    complementos > Instalar desde ZIP**.
 3. Seleccione el ZIP y acepte la instalación experimental cuando QGIS lo
@@ -102,8 +104,8 @@ ya cargado o simplemente seleccionado en la pestaña Datos.
 
 ## Resultados y trazabilidad
 
-Cada modelación se guarda internamente en una carpeta
-`corrida_AAAAMMDD_HHMMSS`. Incluye las
+Cada modelación se guarda en una carpeta
+`modelacion_AAAAMMDD_HHMMSS`. Incluye las
 series, métricas, parámetros, procedencia de datos, gráficos individuales y
 paneles en PNG/SVG, además de `Informe_Tecnico_Lutz_Scholz.docx`. La validación
 se informa por separado y nunca modifica los parámetros calibrados. El informe
@@ -111,10 +113,16 @@ Word conserva los valores iniciales y finales, los límites y la resolución de
 la búsqueda automática, las combinaciones rechazadas por balance físico y la
 comparación del ajuste antes y después de calibrar.
 
-En el informe, los identificadores internos se presentan con terminología
-técnica legible: «modelación», «calibración automática», «Escenario base» y
-«Cronológica 60/40». Los nombres de carpetas `corrida_*` se mantienen
-internamente para conservar compatibilidad y trazabilidad.
+La búsqueda automática admite valores de agotamiento desde `a = 0.001 1/día`
+para representar respuestas lentas. El punto inicial se evalúa como candidato y
+se conserva cuando ninguna combinación de la malla mejora la función objetivo;
+por ello, la calibración automática nunca degrada deliberadamente el ajuste de
+partida.
+
+En el informe y en los archivos de salida se utiliza terminología técnica
+legible: «modelación», «calibración automática», «Escenario base» y
+«Cronológica 60/40». Las modelaciones antiguas que ya tengan nombres
+`corrida_*` continúan siendo válidas y no se renombran automáticamente.
 
 La convención de sesgo utilizada es
 `PBIAS = 100 * suma(Qsim - Qobs) / suma(Qobs)`: un valor negativo representa
@@ -122,20 +130,32 @@ subestimación global y uno positivo, sobreestimación. Las conclusiones separan
 el desempeño general, los caudales bajos y el comportamiento de caudales altos.
 
 La pestaña **Permanencia** permite activar o dejar desactivada la transposición
-hidrológica. Si se activa, el archivo de la cuenca donante debe incluir fecha,
-precipitación y caudal observado, y el complemento registra áreas, factores y
-meses comunes en `datos/transposicion_caudales.csv`. La cuenca objetivo es la
-serie principal cargada en **Datos**.
+hidrológica. La cuenca modelada en Lutz Scholz actúa automáticamente como fuente:
+`Qc` es su caudal simulado final, `Pc` su precipitación y `Ac` su área. El usuario
+solo ingresa la precipitación media anual `Ps` en mm/año y el área `As` de la
+cuenca objetivo. No se requiere otro Excel. El factor fijo
+`(As/Ac) × (Ps/Pc)` se aplica a cada caudal mensual `Qc`, y el complemento
+registra la serie resultante en `datos/transposicion_caudales.csv`.
+
+La pestaña **Resultados** muestra la serie seleccionada como matriz año por mes.
+También se exportan `matriz_caudales_simulados.csv`,
+`matriz_caudales_observados.csv` y, cuando corresponde,
+`matriz_caudales_transferidos.csv`.
 
 El archivo `datos/permanencia_caudales.csv`, la vista gráfica y el informe Word
-presentan Q75 y Q95 mediante posiciones de trazado de Weibull `P = m/(n+1)`,
-además de una referencia equivalente al 15 % del caudal medio mensual de la
-fuente seleccionada. Q75 y Q95 son estadísticas hidrológicas de excedencia. La
+presentan Q10, Q25, Q50, Q75, Q90 y Q95 mediante posiciones de trazado de
+Weibull `P = m/(n+1)`, además de una referencia equivalente al 15 % del caudal
+medio mensual de la fuente seleccionada. Q75 es el caudal igualado o excedido
+el 75 % del tiempo; estas persistencias son estadísticas hidrológicas. La
 referencia del 15 % se incluye como apoyo para el método hidrológico-hidráulico
 del Anexo I de la Resolución Jefatural N.° 267-2019-ANA; ninguno de estos valores
 constituye por sí solo un caudal ecológico aprobado. El método aplicable debe
 definirse según la categoría del proyecto y coordinarse o aprobarse con la
 Autoridad Administrativa del Agua competente.
+
+Las columnas Q95 y 15 % del caudal medio se exportan además en
+`datos/referencias_caudal_ecologico.csv`, manteniendo explícitamente su carácter
+referencial y no aprobatorio.
 
 El recorte controlado se conserva únicamente como alternativa manual
 exploratoria. Cuando se utiliza, el informe principal presenta una nota breve

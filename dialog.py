@@ -21,7 +21,7 @@ from .core import (
     calibrate_parameters, calculate_retention_components, estimate_c_observed,
     estimate_c_southern_region, estimate_c_turc, regional_supply, run_model,
     select_k_by_criteria, summarize_etp, chronological_observed_split,
-    flow_persistence, transfer_hydrological_flows,
+    flow_persistence, transfer_simulated_flows,
 )
 from .io_utils import read_project, write_results
 from .plotting import create_diagnostic_plots
@@ -49,6 +49,7 @@ class LutzScholzDialog(QDialog):
         self.loaded_input_path = None
         self.last_outputs = {}
         self.result_plot_paths = {}
+        self.last_result = None
         self.last_run_folder = None
         self.period_split_info = None
         self.climate_provenance = {}
@@ -372,7 +373,7 @@ class LutzScholzDialog(QDialog):
         self.negative_balance_combo.addItem("Exploratorio: recorte controlado con advertencia", "controlled_clip")
         self.c_min = self._spin(0, .99999, .12, 5, .01); self.c_max = self._spin(.00001, 1, .22, 5, .01)
         self.r_min = self._spin(0, 1000, 0, 2, 5); self.r_max = self._spin(0.1, 2000, 200, 2, 5)
-        self.a_min = self._spin(.00001, 1, .005, 5, .001); self.a_max = self._spin(.00002, 1, .06, 5, .001)
+        self.a_min = self._spin(.00001, 1, .001, 5, .001); self.a_max = self._spin(.00002, 1, .06, 5, .001)
         self.grid_steps = QSpinBox(); self.grid_steps.setRange(4, 20); self.grid_steps.setValue(8)
         info = QLabel(
             "La calibracion automatica solo evalua combinaciones con Q mensual mayor o igual a cero. "
@@ -390,7 +391,7 @@ class LutzScholzDialog(QDialog):
         self.auto_calibrate.setChecked(False)
         self.k_mode.setCurrentIndex(2)
         self.c_estimate_status.setText(
-            "Modo manual activo: la corrida usara exactamente C, R, a y las 12 fracciones de abastecimiento visibles. "
+            "Modo manual activo: la modelación usará exactamente C, R, a y las 12 fracciones de abastecimiento visibles. "
             "Los indicadores se calcularan sin optimizar parametros."
         )
 
@@ -398,71 +399,63 @@ class LutzScholzDialog(QDialog):
         content = QWidget(); layout = QVBoxLayout(content)
         transfer = QGroupBox("Transposición hidrológica opcional")
         grid = QGridLayout(transfer)
-        self.transfer_check = QCheckBox("Aplicar transferencia Qs = (As/Ac) × (Ps/Pc) × Qc")
+        self.transfer_check = QCheckBox(
+            "Transferir el caudal simulado final Qc: Qs = (As/Ac) × (Ps/Pc) × Qc"
+        )
         self.transfer_check.setChecked(False)
-        self.donor_input_edit = QLineEdit()
-        self.donor_input_edit.setPlaceholderText("CSV o Excel de la cuenca donante")
-        browse = QPushButton("Examinar")
-        browse.clicked.connect(self._browse_donor_input)
-        self.donor_area_spin = self._spin(.001, 1_000_000, 1000.0, 3, 1)
-        self.transfer_method_combo = QComboBox()
-        self.transfer_method_combo.addItem("Factor anual de precipitación", "annual")
-        self.transfer_method_combo.addItem("Factores por mes climatológico", "monthly_climatology")
+        self.transfer_check.toggled.connect(self._sync_transfer_source)
+        self.target_precipitation_spin = self._spin(.001, 20_000, 500.0, 3, 1)
+        self.target_area_spin = self._spin(.001, 1_000_000, 100.0, 3, 1)
         note = QLabel(
-            "El archivo donante debe contener Fecha, Precipitación y Q observado. La cuenca objetivo "
-            "es la serie cargada en Datos y su área es la indicada en Parámetros principales."
+            "Qc, Pc y el área Ac se toman automáticamente de la simulación Lutz Scholz y de Datos. "
+            "Solo ingrese el área As y la precipitación media anual Ps de la cuenca objetivo. "
+            "El factor resultante se aplica a todos los caudales mensuales Qc."
         )
         note.setWordWrap(True)
-        grid.addWidget(self.transfer_check, 0, 0, 1, 3)
-        grid.addWidget(QLabel("Serie donante"), 1, 0); grid.addWidget(self.donor_input_edit, 1, 1); grid.addWidget(browse, 1, 2)
-        grid.addWidget(QLabel("Área donante (km²)"), 2, 0); grid.addWidget(self.donor_area_spin, 2, 1)
-        grid.addWidget(QLabel("Ajuste de precipitación"), 3, 0); grid.addWidget(self.transfer_method_combo, 3, 1, 1, 2)
-        grid.addWidget(note, 4, 0, 1, 3)
+        grid.addWidget(self.transfer_check, 0, 0, 1, 2)
+        grid.addWidget(QLabel("Precipitación media anual objetivo Ps (mm/año)"), 1, 0)
+        grid.addWidget(self.target_precipitation_spin, 1, 1)
+        grid.addWidget(QLabel("Área objetivo As (km²)"), 2, 0)
+        grid.addWidget(self.target_area_spin, 2, 1)
+        grid.addWidget(note, 3, 0, 1, 2)
         layout.addWidget(transfer)
 
-        persistence = QGroupBox("Persistencia y referencia ecológica")
+        persistence = QGroupBox("Régimen multimensual, persistencia y referencia ecológica")
         form = QFormLayout(persistence)
         self.persistence_source_combo = QComboBox()
         self.persistence_source_combo.addItem("Caudal simulado por Lutz Scholz", "simulado")
-        self.persistence_source_combo.addItem("Caudal observado de la serie objetivo", "observado")
+        self.persistence_source_combo.addItem("Caudal observado de la cuenca modelada", "observado")
         self.persistence_source_combo.addItem("Caudal transferido", "transferido")
         self.persistence_status = QLabel(
             "La permanencia se calcula de forma independiente. No es necesario activar la transposición."
         )
         self.persistence_status.setWordWrap(True)
-        form.addRow("Serie para Q75, Q95 y referencia del 15 %", self.persistence_source_combo)
+        form.addRow("Serie para el análisis mensual", self.persistence_source_combo)
         form.addRow("Criterio", self.persistence_status)
         layout.addWidget(persistence)
         warning = QLabel(
-            "Q75 y Q95 son estadísticas hidrológicas. La referencia del 15 % y el Q95 no constituyen "
-            "por sí solos un caudal ecológico aprobado por la ANA."
+            "Se calcula por separado cada mes calendario con Weibull. Q75 es el caudal con persistencia "
+            "del 75 %. La referencia del 15 % y Q95 no constituyen por sí solos un caudal ecológico "
+            "aprobado por la ANA."
         )
         warning.setWordWrap(True); layout.addWidget(warning); layout.addStretch(1)
         return self._scroll(content)
 
-    def _browse_donor_input(self):
-        initial = self.donor_input_edit.text().strip()
-        if not initial and self.project_folders:
-            initial = str(self.project_folders["input"])
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Seleccionar serie de la cuenca donante", initial,
-            "Datos (*.xlsx *.csv *.txt);;Todos (*.*)",
-        )
-        if path:
-            self.donor_input_edit.setText(path)
+    def _sync_transfer_source(self, enabled):
+        if not hasattr(self, "persistence_source_combo"):
+            return
+        preferred = "transferido" if enabled else "simulado"
+        index = self.persistence_source_combo.findData(preferred)
+        if index >= 0:
+            self.persistence_source_combo.setCurrentIndex(index)
 
     def _apply_flow_analysis(self, result):
         selected_origin = self.persistence_source_combo.currentData() or "simulado"
         if self.transfer_check.isChecked():
-            donor_path = self.donor_input_edit.text().strip()
-            if not donor_path:
-                raise LutzError("Seleccione el CSV o Excel de la cuenca donante.")
-            donor = read_project(donor_path)
-            rows, transfer = transfer_hydrological_flows(
-                result["rows"], donor.records, self.area_spin.value(),
-                self.donor_area_spin.value(), self.transfer_method_combo.currentData(),
+            rows, transfer = transfer_simulated_flows(
+                result["rows"], self.area_spin.value(), self.target_area_spin.value(),
+                self.target_precipitation_spin.value(),
             )
-            transfer["donor_file"] = str(Path(donor_path).resolve())
             result["rows"] = rows
             result["flow_transfer"] = transfer
         else:
@@ -518,6 +511,30 @@ class LutzScholzDialog(QDialog):
         self.svg_widgets = {}
         for key, label in (("panel_diagnostico", "Diagnóstico integral"), ("serie_mensual", "Serie"), ("caudal_anual", "Anual"), ("regimen_multimensual", "Régimen"), ("dispersion", "Dispersión"), ("permanencia", "Permanencia"), ("resumen", "Ficha")):
             widget = QSvgWidget(); widget.setMinimumSize(700, 430); self.svg_widgets[key] = widget; self.result_tabs.addTab(widget, label)
+        self.flow_matrix_table = QTableWidget(0, 14)
+        self.flow_matrix_table.setHorizontalHeaderLabels((
+            "Año", *MONTHS, "Q medio",
+        ))
+        self.flow_matrix_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.flow_matrix_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.flow_matrix_table.verticalHeader().setVisible(False)
+        self.result_tabs.insertTab(
+            self.result_tabs.count() - 1, self.flow_matrix_table, "Matriz mensual"
+        )
+        self.persistence_table = QTableWidget(0, 10)
+        self.persistence_table.setHorizontalHeaderLabels((
+            "Mes", "n", "Q medio", "Q10", "Q25", "Q50",
+            "Q75 (persistencia 75 %)", "Q90", "Q95", "15 % Q medio",
+        ))
+        self.persistence_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.persistence_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.persistence_table.verticalHeader().setVisible(False)
+        self.persistence_table.setToolTip(
+            "Caudales por mes calendario. Q75 es el caudal igualado o excedido el 75 % del tiempo."
+        )
+        self.result_tabs.insertTab(
+            self.result_tabs.count() - 1, self.persistence_table, "Persistencias mensuales"
+        )
         layout.addWidget(self.result_tabs, 1)
         open_folder = QPushButton("Abrir carpeta de resultados"); open_folder.clicked.connect(self._open_output); layout.addWidget(open_folder)
         open_report = QPushButton("Abrir informe técnico Word"); open_report.clicked.connect(self._open_report); layout.addWidget(open_report)
@@ -551,12 +568,91 @@ class LutzScholzDialog(QDialog):
             path = self.result_plot_paths.get(logical_key + suffix)
             if path:
                 self.svg_widgets[logical_key].load(path)
+        self._refresh_flow_matrix(period)
+        self._refresh_persistence_table(period)
         labels = {
             "completo": "Toda la serie; consulte por separado calibracion y validacion para evaluar transferencia.",
             "calibracion": "Periodo usado para ajustar parametros.",
             "validacion": "Periodo independiente; utiliza los parametros calibrados sin volver a ajustarlos.",
         }
         self.result_period_note.setText(labels.get(period, ""))
+
+    def _period_rows(self, period):
+        rows = list((self.last_result or {}).get("rows") or [])
+        selected_period = {
+            "calibracion": (self.last_result or {}).get("calibration_period"),
+            "validacion": (self.last_result or {}).get("validation_period"),
+        }.get(period)
+        if selected_period:
+            rows = [
+                row for row in rows
+                if selected_period[0] <= int(row["anio"]) <= selected_period[1]
+            ]
+        return rows
+
+    def _refresh_flow_matrix(self, period="completo"):
+        if not hasattr(self, "flow_matrix_table"):
+            return
+        self.flow_matrix_table.setRowCount(0)
+        if not self.last_result:
+            return
+        internal_period = {
+            "completo": "complete", "calibracion": "calibration", "validacion": "validation",
+        }.get(period, "complete")
+        persistence = (self.last_result.get("flow_persistence") or {}).get(internal_period) or {}
+        selected_origin = persistence.get("selected_origin", "simulado")
+        field = {
+            "simulado": "caudal_simulado_m3s",
+            "observado": "caudal_observado_m3s",
+            "transferido": "caudal_transferido_m3s",
+        }.get(selected_origin, "caudal_simulado_m3s")
+        by_year = {}
+        for item in self._period_rows(period):
+            by_year.setdefault(int(item["anio"]), {})[int(item["mes"])] = item.get(field)
+        for year in sorted(by_year):
+            values = [by_year[year].get(month) for month in range(1, 13)]
+            valid = [float(value) for value in values if value is not None]
+            data = (str(year), *values, sum(valid) / len(valid) if valid else None)
+            row = self.flow_matrix_table.rowCount()
+            self.flow_matrix_table.insertRow(row)
+            for column, value in enumerate(data):
+                text = value if isinstance(value, str) else ("N/D" if value is None else f"{float(value):.4f}")
+                cell = QTableWidgetItem(text)
+                if column > 0:
+                    cell.setTextAlignment(Qt.AlignCenter)
+                self.flow_matrix_table.setItem(row, column, cell)
+        self.flow_matrix_table.resizeColumnsToContents()
+
+    def _refresh_persistence_table(self, period="completo"):
+        if not hasattr(self, "persistence_table"):
+            return
+        self.persistence_table.setRowCount(0)
+        if not self.last_result:
+            return
+        internal_period = {
+            "completo": "complete", "calibracion": "calibration", "validacion": "validation",
+        }.get(period, "complete")
+        persistence = (self.last_result.get("flow_persistence") or {}).get(internal_period) or {}
+        selected_origin = persistence.get("selected_origin", "simulado")
+        for item in persistence.get("mensual", []):
+            values = item.get(selected_origin) or {}
+            row = self.persistence_table.rowCount()
+            self.persistence_table.insertRow(row)
+            month = int(item.get("mes", 0))
+            data = (
+                MONTHS[month - 1] if 1 <= month <= 12 else str(month),
+                str(values.get("n", 0)),
+                values.get("mean_m3s"), values.get("Q10_m3s"), values.get("Q25_m3s"),
+                values.get("Q50_m3s"), values.get("Q75_m3s"), values.get("Q90_m3s"),
+                values.get("Q95_m3s"), values.get("reference_15pct_mean_m3s"),
+            )
+            for column, value in enumerate(data):
+                text = value if isinstance(value, str) else ("N/D" if value is None else f"{value:.4f}")
+                cell = QTableWidgetItem(text)
+                if column > 0:
+                    cell.setTextAlignment(Qt.AlignCenter)
+                self.persistence_table.setItem(row, column, cell)
+        self.persistence_table.resizeColumnsToContents()
 
     def _browse_input(self):
         initial = self.input_edit.text().strip()
@@ -1154,14 +1250,14 @@ class LutzScholzDialog(QDialog):
                 )
         return calibration, validation
 
-    def _create_run_folder(self, base_output):
+    def _create_modeling_folder(self, base_output):
         base = Path(base_output)
         base.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        folder = base / f"corrida_{stamp}"
+        folder = base / f"modelacion_{stamp}"
         counter = 2
         while folder.exists():
-            folder = base / f"corrida_{stamp}_{counter:02d}"
+            folder = base / f"modelacion_{stamp}_{counter:02d}"
             counter += 1
         folder.mkdir(parents=True)
         return folder
@@ -1189,6 +1285,8 @@ class LutzScholzDialog(QDialog):
             "retention_source": self.r_mode.currentText(),
             "persistence_source": self.persistence_source_combo.currentData(),
             "flow_transfer_active": self.transfer_check.isChecked(),
+            "flow_transfer_target_area_km2": self.target_area_spin.value(),
+            "flow_transfer_target_annual_precipitation_mm": self.target_precipitation_spin.value(),
             "spatial_layers": {
                 "basin": self.basin_combo.currentLayer().name() if spatial_retention and self.basin_combo.currentLayer() else None,
                 "snow_glacier": self.snow_combo.currentLayer().name() if spatial_retention and self.snow_combo.currentLayer() else None,
@@ -1249,7 +1347,7 @@ class LutzScholzDialog(QDialog):
             if self.c_estimate_result:
                 result["c_estimation"] = dict(self.c_estimate_result)
             self._apply_flow_analysis(result)
-            run_folder = self._create_run_folder(output)
+            run_folder = self._create_modeling_folder(output)
             result["run_metadata"] = self._run_metadata(records, calibration_period, validation, run_folder)
             self.last_outputs = write_results(result, str(run_folder))
             plots = create_diagnostic_plots(result, str(run_folder))
@@ -1259,6 +1357,7 @@ class LutzScholzDialog(QDialog):
             )
             finalize_manifest(self.last_outputs["manifest"], result, plots, pngs, report_path)
             self.result_plot_paths = plots
+            self.last_result = result
             self.last_outputs.update({"grafico_"+key: value for key, value in plots.items()})
             self.last_outputs.update({"png_"+key: value for key, value in pngs.items()})
             self.last_outputs["informe_word"] = report_path
@@ -1269,7 +1368,7 @@ class LutzScholzDialog(QDialog):
                 "folder": str(run_folder),
                 "created_at": result["run_metadata"]["created_at"],
             }
-            (Path(output) / "ultima_corrida.json").write_text(
+            (Path(output) / "ultima_modelacion.json").write_text(
                 json.dumps(pointer, indent=2, ensure_ascii=False), encoding="utf-8"
             )
             if plots.get("resumen"):
@@ -1341,15 +1440,15 @@ class LutzScholzDialog(QDialog):
         permanence = (result.get("flow_persistence") or {}).get("complete") or {}
         if permanence:
             selected = permanence.get("selected_origin", "simulado")
-            lines += ["", "PERMANENCIA DE CAUDALES", f"  Fuente seleccionada: {selected}"]
+            lines += ["", "REGIMEN MULTIMENSUAL Y PERSISTENCIA DE CAUDALES", f"  Fuente seleccionada: {selected}"]
             for origin, label in (("simulado", "Simulado"), ("observado", "Observado"), ("transferido", "Transferido")):
                 values = permanence.get(origin) or {}
                 if values.get("n"):
                     lines.append(
-                        f"  {label}: Q75={values.get('Q75_m3s', 0):.3f} m3/s; "
-                        f"Q95={values.get('Q95_m3s', 0):.3f} m3/s"
+                        f"  {label}: Q75 (persistencia 75 %)={values.get('Q75_m3s', 0):.3f} m3/s; "
+                        f"Q95 (persistencia 95 %)={values.get('Q95_m3s', 0):.3f} m3/s"
                     )
-            lines.append("  Q75/Q95 son estadísticas hidrológicas; no equivalen por sí solas a un caudal ecológico aprobado.")
+            lines.append("  Las persistencias se calculan por mes calendario con Weibull; no equivalen por sí solas a un caudal ecológico aprobado.")
         lines += ["", "ARCHIVOS"] + [f"  {name}: {path}" for name, path in outputs.items()]
         return "\n".join(lines)
 

@@ -79,9 +79,14 @@ def _y_labels(parts, plot, maximum):
         parts.append(f'<text x="{px-8}" y="{py+ph*fraction+4:.1f}" text-anchor="end" class="tick">{value:.2f}</text>')
 
 
-def _legend(parts, x=760, y=52):
+def _legend(parts, x=760, y=52, include_transferred=False):
     parts.append(f'<line x1="{x}" y1="{y}" x2="{x+28}" y2="{y}" class="obs"/><text x="{x+35}" y="{y+5}" class="label">Observado</text>')
     parts.append(f'<line x1="{x+110}" y1="{y}" x2="{x+138}" y2="{y}" class="sim"/><text x="{x+145}" y="{y+5}" class="label">Simulado</text>')
+    if include_transferred:
+        parts.append(
+            f'<line x1="{x}" y1="{y+24}" x2="{x+28}" y2="{y+24}" class="trans"/>'
+            f'<text x="{x+35}" y="{y+29}" class="label">Transferido</text>'
+        )
 
 
 def _metric_text(metrics):
@@ -115,8 +120,11 @@ def _date_labels(parts, plot, rows, maximum_labels=7):
 def _series_svg(rows, path, period_label="Serie completa", periods=None, diagnostics=None):
     sim = [row["caudal_simulado_m3s"] for row in rows]
     obs = [row["caudal_observado_m3s"] for row in rows]
-    maximum = _maximum(sim, obs)
-    parts = _svg_start(f"Serie mensual: observado vs. simulado - {period_label}")
+    transferred = [row.get("caudal_transferido_m3s") for row in rows]
+    has_transfer = any(value is not None for value in transferred)
+    maximum = _maximum(sim, obs, transferred)
+    title = "Serie mensual: observado, simulado y transferido" if has_transfer else "Serie mensual: observado vs. simulado"
+    parts = _svg_start(f"{title} - {period_label}")
     plot = _frame(parts)
     if periods and rows:
         px, py, pw, ph = plot
@@ -131,7 +139,9 @@ def _series_svg(rows, path, period_label="Serie completa", periods=None, diagnos
                 parts.append(f'<rect x="{x1:.2f}" y="{py}" width="{max(x2-x1, 1):.2f}" height="{ph}" fill="{color}" fill-opacity="0.35"/>')
                 parts.append(f'<text x="{(x1+x2)/2:.2f}" y="{py+16}" text-anchor="middle" class="tick">{label}</text>')
     _y_labels(parts, plot, maximum); _polyline(parts, sim, plot, "sim", maximum); _polyline(parts, obs, plot, "obs", maximum)
-    _date_labels(parts, plot, rows); _legend(parts)
+    if has_transfer:
+        _polyline(parts, transferred, plot, "trans", maximum)
+    _date_labels(parts, plot, rows); _legend(parts, include_transferred=has_transfer)
     parts.append(f'<text x="78" y="52" class="metric">Escala mensual · {_metric_text((diagnostics or {}).get("monthly"))}</text>')
     return _write(path, parts)
 
@@ -158,10 +168,20 @@ def _monthly_svg(rows, path, period_label="Serie completa", diagnostics=None):
     diagnostics = diagnostics or diagnostic_scales(rows)
     values = diagnostics["regime_series"]
     sim = [row["caudal_simulado_m3s"] for row in values]; obs = [row["caudal_observado_m3s"] for row in values]
-    maximum = _maximum(sim, obs)
+    transferred = []
+    for month in range(1, 13):
+        current = [
+            float(row["caudal_transferido_m3s"]) for row in rows
+            if int(row["mes"]) == month and row.get("caudal_transferido_m3s") is not None
+        ]
+        transferred.append(sum(current) / len(current) if current else None)
+    has_transfer = any(value is not None for value in transferred)
+    maximum = _maximum(sim, obs, transferred)
     parts = _svg_start(f"Regimen multimensual - {period_label}")
-    plot = _frame(parts, x_label="Mes"); _y_labels(parts, plot, maximum); _legend(parts)
+    plot = _frame(parts, x_label="Mes"); _y_labels(parts, plot, maximum); _legend(parts, include_transferred=has_transfer)
     _polyline(parts, sim, plot, "sim", maximum); _polyline(parts, obs, plot, "obs", maximum)
+    if has_transfer:
+        _polyline(parts, transferred, plot, "trans", maximum)
     px, py, pw, ph = plot
     for month in range(12):
         x = px + pw * month/11
@@ -241,8 +261,8 @@ def _persistence_svg(rows, path, period_label="Serie completa", persistence=None
     selected_values = persistence.get(selected) or {}
     parts.append(
         f'<text x="78" y="52" class="metric">'
-        f'Fuente={html.escape(selected)} · Q75={_flow_text(selected_values, "Q75_m3s")} · '
-        f'Q95={_flow_text(selected_values, "Q95_m3s")} m3/s</text>'
+        f'Fuente={html.escape(selected)} · Q75 (persistencia 75 %)={_flow_text(selected_values, "Q75_m3s")} · '
+        f'Q95 (persistencia 95 %)={_flow_text(selected_values, "Q95_m3s")} m3/s</text>'
     )
     _legend(parts)
     if transferred:

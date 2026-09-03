@@ -200,6 +200,23 @@ def read_project(path: str) -> ProjectInput:
     return ProjectInput(read_monthly_csv(path))
 
 
+def _write_monthly_flow_matrix(path, rows, field):
+    by_year = {}
+    for row in rows:
+        by_year.setdefault(int(row["anio"]), {})[int(row["mes"])] = row.get(field)
+    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow((
+            "anio", "ene_m3s", "feb_m3s", "mar_m3s", "abr_m3s", "may_m3s", "jun_m3s",
+            "jul_m3s", "ago_m3s", "sep_m3s", "oct_m3s", "nov_m3s", "dic_m3s",
+            "caudal_medio_m3s",
+        ))
+        for year in sorted(by_year):
+            values = [by_year[year].get(month) for month in range(1, 13)]
+            valid = [float(value) for value in values if value is not None]
+            writer.writerow((year, *values, sum(valid) / len(valid) if valid else None))
+
+
 def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, str]:
     folder = Path(output_folder)
     folder.mkdir(parents=True, exist_ok=True)
@@ -212,14 +229,26 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
     parameters_path = trace_folder / "parametros_modelo.json"
     precipitation_path = data_folder / "estadisticas_precipitacion.csv"
     persistence_path = data_folder / "permanencia_caudales.csv"
+    ecological_path = data_folder / "referencias_caudal_ecologico.csv"
     transfer_path = data_folder / "transposicion_caudales.csv"
-    manifest_path = trace_folder / "manifiesto_corrida.json"
+    manifest_path = trace_folder / "manifiesto_modelacion.json"
 
     rows = list(result["rows"])
     with series_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
+
+    matrix_paths = {}
+    for origin, field, filename in (
+        ("simulado", "caudal_simulado_m3s", "matriz_caudales_simulados.csv"),
+        ("observado", "caudal_observado_m3s", "matriz_caudales_observados.csv"),
+        ("transferido", "caudal_transferido_m3s", "matriz_caudales_transferidos.csv"),
+    ):
+        if any(row.get(field) is not None for row in rows):
+            path = data_folder / filename
+            _write_monthly_flow_matrix(path, rows, field)
+            matrix_paths[origin] = path
 
     with metrics_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
@@ -257,7 +286,10 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
     with persistence_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow((
-            "periodo", "mes", "origen", "n", "caudal_medio_m3s", "Q75_m3s", "Q95_m3s",
+            "periodo", "mes", "origen", "n", "caudal_medio_m3s", "desviacion_estandar_m3s",
+            "coeficiente_variacion", "caudal_maximo_m3s", "caudal_minimo_m3s",
+            "Q10_persistencia_m3s", "Q25_persistencia_m3s", "Q50_persistencia_m3s",
+            "Q75_persistencia_m3s", "Q90_persistencia_m3s", "Q95_persistencia_m3s",
             "referencia_15pct_media_m3s", "ceros_porcentaje", "metodo",
         ))
         for period in ("complete", "calibration", "validation"):
@@ -268,7 +300,10 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
                 summary = values.get(origin) or {}
                 writer.writerow((
                     period, "serie", origin, summary.get("n", 0), summary.get("mean_m3s"),
-                    summary.get("Q75_m3s"), summary.get("Q95_m3s"),
+                    summary.get("standard_deviation_m3s"), summary.get("coefficient_variation"),
+                    summary.get("maximum_m3s"), summary.get("minimum_m3s"),
+                    summary.get("Q10_m3s"), summary.get("Q25_m3s"), summary.get("Q50_m3s"),
+                    summary.get("Q75_m3s"), summary.get("Q90_m3s"), summary.get("Q95_m3s"),
                     summary.get("reference_15pct_mean_m3s"), summary.get("zero_percentage"),
                     values.get("method", ""),
                 ))
@@ -277,23 +312,47 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
                     summary = monthly.get(origin) or {}
                     writer.writerow((
                         period, monthly.get("mes"), origin, summary.get("n", 0),
-                        summary.get("mean_m3s"), summary.get("Q75_m3s"), summary.get("Q95_m3s"),
+                        summary.get("mean_m3s"), summary.get("standard_deviation_m3s"),
+                        summary.get("coefficient_variation"), summary.get("maximum_m3s"),
+                        summary.get("minimum_m3s"), summary.get("Q10_m3s"),
+                        summary.get("Q25_m3s"), summary.get("Q50_m3s"),
+                        summary.get("Q75_m3s"), summary.get("Q90_m3s"), summary.get("Q95_m3s"),
                         summary.get("reference_15pct_mean_m3s"), summary.get("zero_percentage"),
                         values.get("method", ""),
                     ))
+
+    with ecological_path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow((
+            "periodo", "mes", "origen", "n", "Q95_persistencia_m3s",
+            "referencia_15pct_media_m3s", "alcance",
+        ))
+        for period in ("complete", "calibration", "validation"):
+            values = persistence.get(period)
+            if not values:
+                continue
+            origin = values.get("selected_origin", "simulado")
+            for monthly in values.get("mensual", []):
+                summary = monthly.get(origin) or {}
+                writer.writerow((
+                    period, monthly.get("mes"), origin, summary.get("n", 0),
+                    summary.get("Q95_m3s"), summary.get("reference_15pct_mean_m3s"),
+                    "Referencias hidrologicas; no constituyen por si solas un caudal ecologico aprobado",
+                ))
 
     transfer = result.get("flow_transfer") or {}
     if transfer.get("active"):
         with transfer_path.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow((
-                "fecha", "precipitacion_objetivo_mm", "precipitacion_donante_mm",
-                "caudal_donante_m3s", "factor_transferencia", "caudal_transferido_m3s",
+                "fecha", "precipitacion_media_anual_modelada_pc_mm_anio",
+                "precipitacion_media_anual_objetivo_ps_mm_anio",
+                "caudal_simulado_base_qc_m3s", "factor_transferencia", "caudal_transferido_qs_m3s",
             ))
             for row in rows:
                 writer.writerow((
-                    row.get("fecha"), row.get("precipitacion_mm"),
-                    row.get("precipitacion_donante_mm"), row.get("caudal_donante_m3s"),
+                    row.get("fecha"), row.get("precipitacion_donante_mm"),
+                    row.get("precipitacion_objetivo_mm"), row.get("caudal_donante_m3s"),
                     row.get("factor_transferencia"), row.get("caudal_transferido_m3s"),
                 ))
 
@@ -331,6 +390,10 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
             "metrics": "datos/" + metrics_path.name,
             "precipitation_statistics": "datos/" + precipitation_path.name,
             "flow_persistence": "datos/" + persistence_path.name,
+            "ecological_references": "datos/" + ecological_path.name,
+            "monthly_flow_matrices": {
+                origin: "datos/" + path.name for origin, path in matrix_paths.items()
+            },
             "parameters": "trazabilidad/" + parameters_path.name,
         },
     }
@@ -341,8 +404,11 @@ def write_results(result: Dict[str, object], output_folder: str) -> Dict[str, st
         "series": str(series_path), "metrics": str(metrics_path),
         "precipitation_statistics": str(precipitation_path),
         "flow_persistence": str(persistence_path),
+        "ecological_references": str(ecological_path),
         "parameters": str(parameters_path), "manifest": str(manifest_path),
     }
+    for origin, path in matrix_paths.items():
+        outputs[f"monthly_matrix_{origin}"] = str(path)
     if transfer.get("active"):
         outputs["flow_transfer"] = str(transfer_path)
     return outputs
