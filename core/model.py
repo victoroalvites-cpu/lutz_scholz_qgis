@@ -251,7 +251,7 @@ def average_year(
 ) -> List[float]:
     """Cierra el año promedio y documenta cualquier recorte aplicado.
 
-    ``strict`` conserva el control fisico tradicional y detiene la corrida.
+    ``strict`` conserva el control fisico tradicional y detiene la modelacion.
     ``controlled_clip`` permite reproducir el flujo de calculo que recorta a
     cero, pero deja trazabilidad mensual y cuantifica la masa modificada.
     """

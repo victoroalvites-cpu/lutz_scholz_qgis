@@ -128,25 +128,43 @@ def _persistence_origin(rows, field):
         if row.get(field) is not None and math.isfinite(float(row[field]))
     ]
     if not values:
-        return {"n": 0, "mean_m3s": None, "Q75_m3s": None, "Q95_m3s": None,
-                "reference_15pct_mean_m3s": None, "zero_percentage": None}
+        return {
+            "n": 0, "mean_m3s": None, "standard_deviation_m3s": None,
+            "coefficient_variation": None, "maximum_m3s": None, "minimum_m3s": None,
+            "Q10_m3s": None, "Q25_m3s": None, "Q50_m3s": None,
+            "Q75_m3s": None, "Q90_m3s": None, "Q95_m3s": None,
+            "reference_15pct_mean_m3s": None, "zero_percentage": None,
+        }
+    mean = sum(values) / len(values)
+    standard_deviation = math.sqrt(
+        sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+    ) if len(values) > 1 else 0.0
     return {
         "n": len(values),
-        "mean_m3s": sum(values) / len(values),
+        "mean_m3s": mean,
+        "standard_deviation_m3s": standard_deviation,
+        "coefficient_variation": standard_deviation / mean if abs(mean) > 1e-12 else None,
+        "maximum_m3s": max(values),
+        "minimum_m3s": min(values),
+        "Q10_m3s": exceedance_flow(values, 0.10),
+        "Q25_m3s": exceedance_flow(values, 0.25),
+        "Q50_m3s": exceedance_flow(values, 0.50),
         "Q75_m3s": exceedance_flow(values, 0.75),
+        "Q90_m3s": exceedance_flow(values, 0.90),
         "Q95_m3s": exceedance_flow(values, 0.95),
-        "reference_15pct_mean_m3s": 0.15 * sum(values) / len(values),
+        "reference_15pct_mean_m3s": 0.15 * mean,
         "zero_percentage": 100.0 * sum(value <= 1e-12 for value in values) / len(values),
     }
 
 
 def flow_persistence(rows, selected_origin="simulado"):
-    """Resume Q75, Q95 y la referencia mensual del 15 % para una serie.
+    """Calcula el regimen y las persistencias mensuales de una serie.
 
-    Q75 y Q95 son estadisticos de permanencia. El 15 % se conserva como una
-    referencia hidrologica del Anexo I de la RJ 267-2019-ANA, no como un caudal
-    ecologico aprobado. La aprobacion requiere el metodo y evaluacion que
-    correspondan al proyecto y al tramo de rio.
+    Cada mes calendario se procesa de manera independiente mediante Weibull.
+    Q75 es el caudal igualado o excedido el 75 % del tiempo; no es el percentil
+    estadistico ascendente 75. El 15 % se conserva como una referencia
+    hidrologica del Anexo I de la RJ 267-2019-ANA, no como un caudal ecologico
+    aprobado.
     """
 
     rows = list(rows)
@@ -166,10 +184,12 @@ def flow_persistence(rows, selected_origin="simulado"):
         monthly.append(item)
     result = {
         "method": "Weibull P=m/(n+1), interpolacion lineal",
+        "probabilities_percent": [10, 25, 50, 75, 90, 95],
         "selected_origin": selected_origin,
         "regulation_reference": "Resolucion Jefatural N. 267-2019-ANA, Anexo I",
         "regulatory_note": (
-            "Q75 y Q95 son estadisticos hidrologicos de permanencia. La columna del 15 % "
+            "Q10, Q25, Q50, Q75, Q90 y Q95 son caudales de persistencia; Q75 es el "
+            "caudal igualado o excedido el 75 % del tiempo. La columna del 15 % "
             "es una referencia hidrologica mensual del Anexo I y no equivale por si sola "
             "a un caudal ecologico aprobado por la ANA."
         ),

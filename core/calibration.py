@@ -96,7 +96,7 @@ def _objective(metrics, name):
 
 def calibrate_retention_and_a(records, base_parameters, retention_config, calibration_years,
                               validation_years=None, r_bounds=(0.0, 200.0),
-                              a_bounds=(0.005, 0.06), steps=9, objective="NSE"):
+                              a_bounds=(0.001, 0.06), steps=9, objective="NSE"):
     observed = [r for r in records if calibration_years[0] <= r.fecha.year <= calibration_years[1]
                 and r.caudal_observado_m3s is not None]
     if len(observed) < 12:
@@ -154,7 +154,7 @@ def calibrate_retention_and_a(records, base_parameters, retention_config, calibr
 
 def calibrate_parameters(records, base_parameters, retention_config, calibration_years,
                          validation_years=None, r_bounds=(0.0, 200.0),
-                         a_bounds=(0.005, 0.06), c_bounds=(0.05, 0.60),
+                         a_bounds=(0.001, 0.06), c_bounds=(0.05, 0.60),
                          steps=9, objective="NSE", calibrate_c=False):
     """Calibra R y a e incluye opcionalmente C mediante ajuste escalonado.
 
@@ -204,7 +204,31 @@ def calibrate_parameters(records, base_parameters, retention_config, calibration
         # Un punto inicial fisicamente incompatible no debe impedir que la
         # busqueda encuentre una combinacion valida dentro de los limites.
         initial_error = str(error)
+    # El punto inicial es una alternativa valida de la calibracion cuando se
+    # encuentra dentro de los limites solicitados. Conservarlo como candidato
+    # evita que una malla discreta sustituya un ajuste mejor por el punto de
+    # malla mas cercano y reduzca la funcion objetivo.
+    initial_in_bounds = (
+        r_lo <= current_r <= r_hi
+        and a_lo <= current_a <= a_hi
+        and (not calibrate_c or c_lo <= current_c <= c_hi)
+    )
     best = None
+    if initial_result is not None and initial_in_bounds:
+        initial_limit = _physical_retention_limit(
+            records, base_parameters, retention_config, calibration_years,
+            current_c, current_a,
+        )
+        best = {
+            "score": _objective(initial_result["metrics_calibration"], objective),
+            "coefficient": current_c,
+            "retention_mm": current_r,
+            "a_day": current_a,
+            "retention_limit_mm": (
+                initial_limit if math.isfinite(initial_limit) else None
+            ),
+            "result": initial_result,
+        }
     trials = 0
     rejected_trials = 0
 
