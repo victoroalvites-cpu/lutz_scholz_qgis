@@ -14,7 +14,7 @@ class LutzScholzPlugin:
         self.iface = iface
         self.action = None
         self.dialog = None
-        self.menu_name = self.tr("&Lutz Scholz")
+        self.menu_name = self.tr("&Lutz Sholtz")
 
     def tr(self, text):
         return QCoreApplication.translate("LutzScholzPlugin", text)
@@ -22,11 +22,11 @@ class LutzScholzPlugin:
     def initGui(self):
         self.action = QAction(
             QIcon(str(Path(__file__).with_name("icon.png"))),
-            self.tr("Modelo Lutz Scholz"),
+            self.tr("Modelo Lutz Sholtz"),
             self.iface.mainWindow(),
         )
         self.action.setObjectName("lutzScholzModelAction")
-        self.action.setToolTip(self.tr("Calcular caudales mensuales con Lutz Scholz"))
+        self.action.setToolTip(self.tr("Calcular caudales mensuales con Lutz Sholtz"))
         self.action.triggered.connect(self.run)
         self.iface.addPluginToMenu(self.menu_name, self.action)
         self.iface.addToolBarIcon(self.action)

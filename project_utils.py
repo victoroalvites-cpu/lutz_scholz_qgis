@@ -38,7 +38,7 @@ def ensure_project_structure(root_folder):
 
     payload = {
         "schema_version": 1,
-        "application": "Lutz Scholz para QGIS",
+        "application": "Lutz Sholtz para QGIS",
         "created_at": created_at,
         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "folders": {key: path.name for key, path in folders.items()},

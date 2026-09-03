@@ -431,7 +431,7 @@ def create_word_report(result, outputs, png_paths, output_path):
 
     body = []
     body.append(_paragraph("INFORME TÉCNICO", bold=True, size=23, color="0B2545", after=4))
-    body.append(_paragraph("Modelo hidrológico mensual Lutz Scholz", size=14, color="4B5563", after=14))
+    body.append(_paragraph("Modelo hidrológico mensual Lutz Sholtz", size=14, color="4B5563", after=14))
     body.append(_table([
         ["Campo", "Valor"],
         ["Identificador de modelación", _display_modeling_id(metadata.get("run_id"))],
@@ -611,7 +611,7 @@ def create_word_report(result, outputs, png_paths, output_path):
         }.get(transfer.get("method"), _display_label(transfer.get("method")))
         source_area = transfer.get("source_area_km2", transfer.get("donor_area_km2"))
         body.append(_paragraph(
-            "La serie Qc corresponde al caudal simulado final de Lutz Scholz. La serie objetivo "
+            "La serie Qc corresponde al caudal simulado final de Lutz Sholtz. La serie objetivo "
             "se estimó con Qs = (As/Ac) × (Ps/Pc) × Qc, utilizando "
             f"{method_label}. La cuenca modelada tiene {_safe(source_area)} km² "
             f"y Pc = {_safe(transfer.get('source_annual_precipitation_mm'))} mm/año; "
@@ -625,7 +625,7 @@ def create_word_report(result, outputs, png_paths, output_path):
         persistence_number = 8 if transfer.get("active") else 7
         selected_origin = persistence.get("selected_origin", "simulado")
         selected_label = {
-            "simulado": "caudal simulado por Lutz Scholz",
+            "simulado": "caudal simulado por Lutz Sholtz",
             "observado": "caudal observado",
             "transferido": "caudal transferido",
         }.get(selected_origin, selected_origin)
@@ -733,14 +733,14 @@ def create_word_report(result, outputs, png_paths, output_path):
 <Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
 {''.join(image_rels)}</Relationships>'''
     header_xml = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:hdr xmlns:w="{NS_W}"><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>{_run('MODELO LUTZ SCHOLZ | INFORME TÉCNICO', color='6B7280', size=9)}</w:p></w:hdr>'''
+<w:hdr xmlns:w="{NS_W}"><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>{_run('MODELO LUTZ SHOLTZ | INFORME TÉCNICO', color='6B7280', size=9)}</w:p></w:hdr>'''
     footer_xml = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:ftr xmlns:w="{NS_W}"><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>{_run(_display_modeling_id(metadata.get('run_id', 'Modelación Lutz Scholz')), color='6B7280', size=9)}</w:p></w:ftr>'''
+<w:ftr xmlns:w="{NS_W}"><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="0"/></w:pPr>{_run(_display_modeling_id(metadata.get('run_id', 'Modelación Lutz Sholtz')), color='6B7280', size=9)}</w:p></w:ftr>'''
     now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     core_xml = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Informe técnico Lutz Scholz</dc:title><dc:creator>Modelo Lutz Scholz para QGIS</dc:creator><cp:lastModifiedBy>Modelo Lutz Scholz para QGIS</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">{now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">{now}</dcterms:modified></cp:coreProperties>'''
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Informe técnico Lutz Sholtz</dc:title><dc:creator>Modelo Lutz Sholtz para QGIS</dc:creator><cp:lastModifiedBy>Modelo Lutz Sholtz para QGIS</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">{now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">{now}</dcterms:modified></cp:coreProperties>'''
     app_xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Modelo Lutz Scholz para QGIS</Application></Properties>'''
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Modelo Lutz Sholtz para QGIS</Application></Properties>'''
 
     with ZipFile(path, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", content_types)

@@ -59,7 +59,7 @@ class LutzScholzDialog(QDialog):
         self.supply_source_title = "manual"
         self.last_report_path = None
         self.project_folders = {}
-        self.setWindowTitle(f"Modelo Lutz Scholz - v{PLUGIN_VERSION}")
+        self.setWindowTitle(f"Modelo Lutz Sholtz - v{PLUGIN_VERSION}")
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMinMaxButtonsHint)
         self.setMinimumSize(680, 480)
         self.setSizeGripEnabled(True)
@@ -96,7 +96,7 @@ class LutzScholzDialog(QDialog):
         root.setSizeConstraint(QLayout.SizeConstraint.SetDefaultConstraint)
         root.addWidget(self._project_group())
         intro = QLabel(
-            f"Modelo mensual Lutz Scholz v{PLUGIN_SERIES}: división temporal, clima trazable, "
+            f"Modelo mensual Lutz Sholtz v{PLUGIN_SERIES}: división temporal, clima trazable, "
             "calibración y validación independiente, diagnóstico multiescala e informe técnico."
         )
         intro.setWordWrap(True); root.addWidget(intro)
@@ -407,7 +407,7 @@ class LutzScholzDialog(QDialog):
         self.target_precipitation_spin = self._spin(.001, 20_000, 500.0, 3, 1)
         self.target_area_spin = self._spin(.001, 1_000_000, 100.0, 3, 1)
         note = QLabel(
-            "Qc, Pc y el área Ac se toman automáticamente de la simulación Lutz Scholz y de Datos. "
+            "Qc, Pc y el área Ac se toman automáticamente de la simulación Lutz Sholtz y de Datos. "
             "Solo ingrese el área As y la precipitación media anual Ps de la cuenca objetivo. "
             "El factor resultante se aplica a todos los caudales mensuales Qc."
         )
@@ -423,7 +423,7 @@ class LutzScholzDialog(QDialog):
         persistence = QGroupBox("Régimen multimensual, persistencia y referencia ecológica")
         form = QFormLayout(persistence)
         self.persistence_source_combo = QComboBox()
-        self.persistence_source_combo.addItem("Caudal simulado por Lutz Scholz", "simulado")
+        self.persistence_source_combo.addItem("Caudal simulado por Lutz Sholtz", "simulado")
         self.persistence_source_combo.addItem("Caudal observado de la cuenca modelada", "observado")
         self.persistence_source_combo.addItem("Caudal transferido", "transferido")
         self.persistence_status = QLabel(
@@ -1353,7 +1353,7 @@ class LutzScholzDialog(QDialog):
             plots = create_diagnostic_plots(result, str(run_folder))
             pngs = export_panel_pngs(plots, str(run_folder))
             report_path = create_word_report(
-                result, self.last_outputs, pngs, str(run_folder / "Informe_Tecnico_Lutz_Scholz.docx")
+                result, self.last_outputs, pngs, str(run_folder / "Informe_Tecnico_Lutz_Sholtz.docx")
             )
             finalize_manifest(self.last_outputs["manifest"], result, plots, pngs, report_path)
             self.result_plot_paths = plots
@@ -1387,12 +1387,12 @@ class LutzScholzDialog(QDialog):
 
     def _add_results_table(self, path):
         uri = QUrl.fromLocalFile(path).toString() + "?type=csv&delimiter=,&detectTypes=yes&geomType=none"
-        layer = QgsVectorLayer(uri, "Lutz Scholz - resultados mensuales", "delimitedtext")
+        layer = QgsVectorLayer(uri, "Lutz Sholtz - resultados mensuales", "delimitedtext")
         if layer.isValid(): QgsProject.instance().addMapLayer(layer)
 
     def _format_summary(self, result, outputs):
         metadata = result.get("run_metadata", {})
-        lines = [f"MODELO LUTZ SCHOLZ v{PLUGIN_SERIES}", "="*42,
+        lines = [f"MODELO LUTZ SHOLTZ v{PLUGIN_SERIES}", "="*42,
                  f"Identificador de modelación: {_display_modeling_id(metadata.get('run_id'))}",
                  f"Modalidad: {_display_mode(metadata.get('calibration_mode'))}",
                  f"División temporal: {_display_split(metadata.get('split_method'))}",

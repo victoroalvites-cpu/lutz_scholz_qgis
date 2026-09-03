@@ -1,4 +1,4 @@
-"""Punto de entrada del complemento Lutz Scholz para QGIS."""
+"""Punto de entrada del complemento Lutz Sholtz para QGIS."""
 
 
 def classFactory(iface):

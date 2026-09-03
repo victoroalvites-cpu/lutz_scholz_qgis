@@ -1,15 +1,15 @@
 [general]
-name=Lutz Scholz - Modelo Hidrologico Mensual
+name=Lutz Sholtz - Modelo Hidrologico Mensual
 qgisMinimumVersion=3.40
 qgisMaximumVersion=3.99
-description=Monthly Lutz Scholz hydrological model with 60/40 calibration-validation, traceable climate data and technical reports.
-version=0.2.1
+description=Monthly Lutz Sholtz hydrological model with 60/40 calibration-validation, traceable climate data and technical reports.
+version=0.2.2
 author=Victor Olivos
 email=Victoroalvites@gmail.com
 about=Complemento hidrológico mensual con configuración de proyecto, importación Excel/CSV, división cronológica 60/40, calibración automática físicamente restringida y validación independiente sin recalibración. Exporta datos, gráficos PNG/SVG y un informe técnico Word. La integración opcional con Google Earth Engine requiere earthengine-api, un proyecto Cloud habilitado indicado por cada usuario y acceso autorizado a las fuentes seleccionadas; consulte README.md.
 category=Vector
-tags=hidrologia,lutz scholz,earth engine,pisco,era5,chirps,turc,hargreaves,retencion,calibracion,transposicion,permanencia,q75,q95,qgis
-experimental=True
+tags=hidrologia,lutz sholtz,earth engine,pisco,era5,chirps,turc,hargreaves,retencion,calibracion,transposicion,permanencia,q75,q95,qgis
+experimental=False
 deprecated=False
 icon=icon.png
 homepage=https://github.com/victoroalvites-cpu/lutz_scholz_qgis
@@ -18,4 +18,4 @@ tracker=https://github.com/victoroalvites-cpu/lutz_scholz_qgis/issues
 license=GNU GPL v3 or later
 hasProcessingProvider=False
 server=False
-changelog=Versión 0.2.1: corrige los hallazgos de seguridad y calidad del validador oficial, protege la lectura OOXML y adopta enumeraciones compatibles con Qt6. Mantiene la transposición automática, matriz año-mes, persistencias Weibull, referencias ecológicas y calibración robusta incorporadas en 0.2.0.
+changelog=Versión 0.2.2 estable: corrige el nombre público a Lutz Sholtz y retira la marca experimental. Conserva las correcciones de seguridad, calidad y compatibilidad Qt6 aprobadas en 0.2.1, además de la transposición automática, matriz año-mes, persistencias Weibull, referencias ecológicas y calibración robusta.

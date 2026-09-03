@@ -248,7 +248,7 @@ class GeeClimateWidget(QWidget):
         message.setWindowTitle("Habilitar Clima GEE")
         message.setIcon(QMessageBox.Icon.Information)
         message.setText(
-            "Clima GEE es una función opcional. El modelo Lutz Scholz local funciona "
+            "Clima GEE es una función opcional. El modelo Lutz Sholtz local funciona "
             "sin instalar componentes adicionales."
         )
         message.setInformativeText(

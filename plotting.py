@@ -311,7 +311,7 @@ def _panel_diagnostic_svg(rows, path, period_label, diagnostics=None):
 
 
 def _summary_svg(result, path):
-    parts = _svg_start("Ficha trazable del modelo Lutz Scholz", height=1050)
+    parts = _svg_start("Ficha trazable del modelo Lutz Sholtz", height=1050)
     metadata = result.get("run_metadata", {})
     lines = [
         "Origen de indicadores: comparación mensual entre Q observado y Q simulado",

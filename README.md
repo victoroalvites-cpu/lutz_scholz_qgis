@@ -1,7 +1,7 @@
-# Lutz Scholz para QGIS
+# Lutz Sholtz para QGIS
 
 Complemento para la simulación hidrológica mensual mediante el método de
-Lutz Scholz. La edición pública `0.2.1` integra preparación de datos,
+Lutz Sholtz. La edición pública estable `0.2.2` integra preparación de datos,
 calibración, validación independiente, diagnóstico gráfico y reporte técnico
 en una sola interfaz de QGIS.
 
@@ -21,7 +21,7 @@ en una sola interfaz de QGIS.
 - muestra diagnósticos mensual, anual, multimensual y de dispersión;
 - informa NSE, LogNSE, KGE, correlación, RMSE, MAD, PBIAS y el criterio de
   Schultz como diagnóstico complementario;
-- permite transponer opcionalmente el caudal simulado final de Lutz Scholz
+- permite transponer opcionalmente el caudal simulado final de Lutz Sholtz
   mediante `Qs = (As/Ac) (Ps/Pc) Qc`; el usuario solo proporciona el área y la
   precipitación mensual de la cuenca objetivo;
 - calcula el régimen multimensual y las persistencias mensuales Q10, Q25, Q50,
@@ -51,12 +51,11 @@ ni sustituyen archivos existentes.
 
 ## Instalación
 
-1. Descargue `Lutz_Scholz_QGIS_v0.2.1.zip`.
+1. Descargue `Lutz_Sholtz_QGIS_v0.2.2.zip`.
 2. En QGIS 3.40 o posterior abra **Complementos > Administrar e instalar
    complementos > Instalar desde ZIP**.
-3. Seleccione el ZIP y acepte la instalación experimental cuando QGIS lo
-   solicite.
-4. Abra **Complementos > Lutz Scholz > Modelo Lutz Scholz**.
+3. Seleccione el ZIP y confirme la instalación cuando QGIS lo solicite.
+4. Abra **Complementos > Lutz Sholtz > Modelo Lutz Sholtz**.
 
 El núcleo local del modelo funciona con las bibliotecas incluidas en QGIS.
 
@@ -107,7 +106,7 @@ ya cargado o simplemente seleccionado en la pestaña Datos.
 Cada modelación se guarda en una carpeta
 `modelacion_AAAAMMDD_HHMMSS`. Incluye las
 series, métricas, parámetros, procedencia de datos, gráficos individuales y
-paneles en PNG/SVG, además de `Informe_Tecnico_Lutz_Scholz.docx`. La validación
+paneles en PNG/SVG, además de `Informe_Tecnico_Lutz_Sholtz.docx`. La validación
 se informa por separado y nunca modifica los parámetros calibrados. El informe
 Word conserva los valores iniciales y finales, los límites y la resolución de
 la búsqueda automática, las combinaciones rechazadas por balance físico y la
@@ -130,7 +129,7 @@ subestimación global y uno positivo, sobreestimación. Las conclusiones separan
 el desempeño general, los caudales bajos y el comportamiento de caudales altos.
 
 La pestaña **Permanencia** permite activar o dejar desactivada la transposición
-hidrológica. La cuenca modelada en Lutz Scholz actúa automáticamente como fuente:
+hidrológica. La cuenca modelada en Lutz Sholtz actúa automáticamente como fuente:
 `Qc` es su caudal simulado final, `Pc` su precipitación y `Ac` su área. El usuario
 solo ingresa la precipitación media anual `Ps` en mm/año y el área `As` de la
 cuenca objetivo. No se requiere otro Excel. El factor fijo
