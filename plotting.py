@@ -285,7 +285,7 @@ def _panel_diagnostic_svg(rows, path, period_label, diagnostics=None):
 
 
 def _summary_svg(result, path):
-    parts = _svg_start("Ficha trazable del modelo Lutz Scholz", height=850)
+    parts = _svg_start("Ficha trazable del modelo Lutz Scholz", height=1050)
     metadata = result.get("run_metadata", {})
     lines = [
         "Origen de indicadores: comparación mensual entre Q observado y Q simulado",
@@ -304,7 +304,10 @@ def _summary_svg(result, path):
                           f"NSE: {values.get('NSE'):.4f}",
                           f"LogNSE: {values.get('LogNSE'):.4f}" if values.get('LogNSE') is not None else "LogNSE: N/D",
                           f"KGE: {values.get('KGE'):.4f}" if values.get('KGE') is not None else "KGE: N/D",
-                          f"RMSE: {values.get('RMSE'):.4f} m3/s", f"PBIAS: {values.get('PBIAS_porcentaje'):.2f}%"))
+                          f"Correlación r: {values.get('Correlacion'):.4f}" if values.get('Correlacion') is not None else "Correlación r: N/D",
+                          f"RMSE: {values.get('RMSE'):.4f} m3/s", f"MAD: {values.get('MAD'):.4f} m3/s",
+                          f"Schultz D: {values.get('Schultz_D'):.4f}" if values.get('Schultz_D') is not None else "Schultz D: N/D",
+                          f"PBIAS: {values.get('PBIAS_porcentaje'):.2f}%"))
     calibration = result.get("automatic_calibration")
     if calibration:
         lines.extend(("Calibración automática", f"Objetivo: {calibration['objective']}", f"Evaluaciones: {calibration['trials']}"))

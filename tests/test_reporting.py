@@ -100,6 +100,8 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("trazabilidad de la búsqueda", document_xml)
             self.assertIn("Combinaciones rechazadas", document_xml)
             self.assertIn("Convención de PBIAS", document_xml)
+            self.assertIn("Indicadores mensuales complementarios", document_xml)
+            self.assertIn("Schultz D", document_xml)
             self.assertIn("Identificador de modelación", document_xml)
             self.assertIn("modelacion_20260902_162103", document_xml)
             self.assertIn("Escenario base", document_xml)

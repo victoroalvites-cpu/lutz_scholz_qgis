@@ -404,6 +404,12 @@ def metrics(observed: Sequence[Optional[float]], simulated: Sequence[float]) -> 
     high_threshold = sorted_observed[max(0, math.ceil(0.75 * len(sorted_observed)) - 1)]
     high_pairs = [(o, s) for o, s in pairs if o >= high_threshold]
     high_observed_sum = sum(o for o, _ in high_pairs)
+    maximum_observed = max(obs)
+    schultz = (
+        200.0 * sum(abs(s - o) * o for o, s in pairs)
+        / (len(pairs) * maximum_observed ** 2)
+        if maximum_observed > 0 else None
+    )
     return {
         "n": len(pairs),
         "NSE": nse,
@@ -412,6 +418,7 @@ def metrics(observed: Sequence[Optional[float]], simulated: Sequence[float]) -> 
         "Correlacion": correlation,
         "RMSE": math.sqrt(sum((o - s) ** 2 for o, s in pairs) / len(pairs)),
         "MAD": sum(abs(o - s) for o, s in pairs) / len(pairs),
+        "Schultz_D": schultz,
         "PBIAS_porcentaje": 100.0 * sum(s - o for o, s in pairs) / sum(obs) if sum(obs) else None,
         "PBIAS_altos_porcentaje": (
             100.0 * sum(s - o for o, s in high_pairs) / high_observed_sum

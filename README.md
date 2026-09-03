@@ -19,6 +19,8 @@ en una sola interfaz de QGIS.
 - calcula ETP por Hargreaves-Samani, retención espacial y patrones regionales;
 - obtiene, de forma opcional, precipitación o temperatura desde Earth Engine;
 - muestra diagnósticos mensual, anual, multimensual y de dispersión;
+- informa NSE, LogNSE, KGE, correlación, RMSE, MAD, PBIAS y el criterio de
+  Schultz como diagnóstico complementario;
 - calcula curvas de permanencia, Q75 y Q95 para las series simulada y observada,
   tanto para la serie completa como para calibración y validación;
 - exporta CSV, JSON, gráficos PNG/SVG y un informe técnico Word por modelación.

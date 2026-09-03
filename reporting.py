@@ -285,6 +285,19 @@ def _metric_rows(result):
     return rows
 
 
+def _complementary_metric_rows(result):
+    rows = [["Periodo", "Correlación r", "RMSE (m³/s)", "MAD (m³/s)", "Schultz D"]]
+    labels = {"complete": "Completa", "calibration": "Calibración", "validation": "Validación"}
+    for period in ("complete", "calibration", "validation"):
+        metric = ((result.get("diagnostics") or {}).get(period) or {}).get("monthly")
+        if metric:
+            rows.append([
+                labels[period], _safe(metric.get("Correlacion")), _safe(metric.get("RMSE")),
+                _safe(metric.get("MAD")), _safe(metric.get("Schultz_D")),
+            ])
+    return rows
+
+
 def _persistence_summary_rows(result):
     values = (result.get("flow_persistence") or {}).get("complete") or {}
     rows = [["Origen", "n", "Q medio", "Q75", "Q95", "Ceros (%)"]]
@@ -528,6 +541,17 @@ def create_word_report(result, outputs, png_paths, output_path):
     body.append(_paragraph(
         "Convención de PBIAS: 100 × Σ(Qsim - Qobs) / ΣQobs. Un valor negativo indica subestimación "
         "global del caudal y un valor positivo indica sobreestimación.",
+        italic=True, color="4B5563", after=4,
+    ))
+    body.append(_paragraph("Indicadores mensuales complementarios", style="Heading2"))
+    body.append(_table(
+        _complementary_metric_rows(result),
+        [1900, 1865, 1865, 1865, 1865],
+        font_size=9,
+    ))
+    body.append(_paragraph(
+        "El criterio de Schultz D se presenta como diagnóstico complementario; valores menores indican "
+        "menor desviación ponderada y su interpretación es especialmente útil en análisis de eventos.",
         italic=True, color="4B5563", after=4,
     ))
 

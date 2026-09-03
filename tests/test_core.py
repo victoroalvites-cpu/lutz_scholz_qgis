@@ -141,6 +141,7 @@ class LutzCoreTests(unittest.TestCase):
         self.assertAlmostEqual(result["RMSE"], 0.0)
         self.assertAlmostEqual(result["PBIAS_porcentaje"], 0.0)
         self.assertAlmostEqual(result["PBIAS_altos_porcentaje"], 0.0)
+        self.assertAlmostEqual(result["Schultz_D"], 0.0)
 
     def test_weibull_exceedance_and_persistence_are_traceable(self):
         self.assertAlmostEqual(exceedance_flow([10, 8, 6, 4, 2], 0.75), 3.0)

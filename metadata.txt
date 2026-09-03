@@ -18,4 +18,4 @@ tracker=https://github.com/victoroalvites-cpu/lutz_scholz_qgis/issues
 license=GNU GPL v3 or later
 hasProcessingProvider=False
 server=False
-changelog=Primera edición pública: configuración de proyecto, división 60/40, calibración con balance físico estricto, validación independiente, ficha e informe técnico, carga reutilizable de R desde Excel, diagnóstico gráfico, convención PBIAS explícita y análisis de permanencia Q75/Q95 con referencia mensual del Anexo I de la RJ 267-2019-ANA.
+changelog=Primera edición pública: configuración de proyecto, división 60/40, calibración con balance físico estricto, validación independiente, ficha e informe técnico, carga reutilizable de R desde Excel, indicadores completos incluido Schultz D, convención PBIAS explícita y análisis de permanencia Q75/Q95 con referencia mensual del Anexo I de la RJ 267-2019-ANA.
