@@ -33,7 +33,7 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("Q75", document_xml)
         self.assertIn("Persist. 75 %", document_xml)
         self.assertIn("15 % Q medio", document_xml)
-        self.assertIn("caudal simulado por Lutz Scholz", document_xml)
+        self.assertIn("caudal simulado por Lutz Sholtz", document_xml)
         self.assertIn("no equivale por sí solo a un caudal ecológico aprobado", document_xml)
         self.assertIn("8. Conclusiones del desempeño", document_xml)
 
